@@ -257,7 +257,7 @@
         <!-- HEADER MODE PREVIEW -->
         <div class="preview-only mb-6 text-center border-b border-schoolGold/30 pb-4">
             <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Preview Jadwal Sementara</h2>
-            <p class="text-sm text-gray-400">Jadwal mata pelajaran dikunci otomatis. Gunakan tombol 'Acak Ulang' hanya untuk merubah formasi Pengawas.</p>
+            <p class="text-sm text-gray-400">Jadwal mata pelajaran dikunci seragam per jenjang. Gunakan tombol 'Acak Ulang' hanya untuk merubah formasi Pengawas.</p>
         </div>
 
         <!-- HEADER MODE ADMIN -->
@@ -657,12 +657,13 @@
 
         // ==============================================================
         // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL MAPEL BARU DARI AWAL
+        // Menggunakan Sistem Komando Berbasis Mapel (Mapel-Centric Scheduling)
         // ==============================================================
         function buildScheduleState() {
             currentScheduleData = {}; 
             
             // -------------------------------------------------------------
-            // TAHAP 1: INISIALISASI DAFTAR HARI (WAJIB UJIAN SETIAP HARI)
+            // TAHAP 1: INISIALISASI DAFTAR HARI
             // -------------------------------------------------------------
             const startDate = new Date(savedSetupData.tglMulai || new Date());
             const endDate = new Date(savedSetupData.tglSelesai || new Date());
@@ -692,169 +693,200 @@
             ];
 
             // -------------------------------------------------------------
-            // TAHAP 2: EKSTRAK & DISTRIBUSI MAPEL KE DALAM HARI (BIN PACKING)
+            // TAHAP 2: MAPEL-CENTRIC SCHEDULING (JAMIN SEJAJAR SE-JENJANG)
             // -------------------------------------------------------------
             levels.forEach(lvl => {
                 
-                // --- AWAL LOGIKA MAPEL SERAGAM PER JENJANG (TIDAK ACAK) ---
-                let jenjangTmpls = [];
+                let rombelMap = {}; // { '10 DI': [mapelObj1, mapelObj2], ... }
+                let rombelTingkat = {}; // { '10 DI': 10 }
+
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
                     let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
                     if(chk && chk.checked && ujiSelect.value !== "") {
                         let jenis = ujiSelect.value;
-                        jenjangTmpls.push(...masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i)));
+                        let tmpls = masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i));
+                        tmpls.forEach(t => {
+                            if(!rombelMap[t.Kelas_Rombel]) {
+                                rombelMap[t.Kelas_Rombel] = [];
+                                rombelTingkat[t.Kelas_Rombel] = i;
+                            }
+                            rombelMap[t.Kelas_Rombel].push(t);
+                        });
                     }
                 }
 
-                // Buat Master Mapel Order (Deterministik, Dijamin Seragam)
-                let uniqueMapels = [...new Set(jenjangTmpls.map(t => t.Mata_Pelajaran))];
-                
-                // Prioritaskan Mapel Exact di awal array, lalu durasi terpanjang, lalu abjad
+                if (Object.keys(rombelMap).length === 0) return;
+
+                // Ambil semua mapel unik di jenjang ini
+                let allMapelObjs = [];
+                for (let r in rombelMap) allMapelObjs.push(...rombelMap[r]);
+                let uniqueMapels = [...new Set(allMapelObjs.map(t => t.Mata_Pelajaran))];
+
+                // Prioritaskan Mapel Exact di awal array agar aman, sisanya urut berdasarkan max durasi
                 uniqueMapels.sort((a,b) => {
                     let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
                     let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
-                    if(exA !== exB) return exB - exA; 
-                    
-                    let tmplA = jenjangTmpls.find(t => t.Mata_Pelajaran === a);
-                    let tmplB = jenjangTmpls.find(t => t.Mata_Pelajaran === b);
-                    let durA = tmplA ? (parseInt(tmplA.Durasi_Menit) || 0) : 0;
-                    let durB = tmplB ? (parseInt(tmplB.Durasi_Menit) || 0) : 0;
-                    
+                    if(exA !== exB) return exB - exA;
+
+                    let durA = Math.max(...allMapelObjs.filter(x => x.Mata_Pelajaran === a).map(x => parseInt(x.Durasi_Menit)||0), 0);
+                    let durB = Math.max(...allMapelObjs.filter(x => x.Mata_Pelajaran === b).map(x => parseInt(x.Durasi_Menit)||0), 0);
                     if (durA !== durB) return durB - durA;
 
                     return a.localeCompare(b);
                 });
-                // --- AKHIR LOGIKA MAPEL SERAGAM ---
 
-                for(let i = lvl.start; i <= lvl.end; i++) {
-                    let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
-                    let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
-                    
-                    if(chk && chk.checked && ujiSelect.value !== "") {
-                        let jenis = ujiSelect.value;
-                        let tmpls = masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i));
-                        
-                        let rombelMap = {};
-                        tmpls.forEach(t => {
-                            if(!rombelMap[t.Kelas_Rombel]) rombelMap[t.Kelas_Rombel] = [];
-                            rombelMap[t.Kelas_Rombel].push(t);
-                        });
+                let rombelChunks = {};
+                for(let r in rombelMap) {
+                    rombelChunks[r] = Array.from({length: totalDays}, () => []);
+                }
 
-                        for(let r in rombelMap) {
-                            let mapels = [...rombelMap[r]]; 
-                            
-                            // Terapkan Master Mapel Order ke setiap Rombel
-                            mapels.sort((a,b) => {
-                                return uniqueMapels.indexOf(a.Mata_Pelajaran) - uniqueMapels.indexOf(b.Mata_Pelajaran);
-                            });
+                // Fungsi validasi super ketat
+                function isValidChunk(allChunksForRombel, targetDayIndex, newMapel, tingkat) {
+                    let chunk = allChunksForRombel[targetDayIndex];
+                    let temp = [...chunk, newMapel];
+                    let maxM = temp.length;
 
-                            let chunks = Array.from({length: totalDays}, () => []);
-                            
-                            let isSD = lvl.id === 'SD';
-                            let isSMP = lvl.id === 'SMP';
-                            let isSMA = lvl.id === 'SMA';
-                            let isKelasBawah = isSD && (i >= 1 && i <= 2); 
-                            let isKelasAtasSD = isSD && (i >= 3 && i <= 6);
+                    let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
+                    let totalExam = temp.reduce((s, m) => s + (parseInt(m.Durasi_Menit) || 90), 0);
+                    let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
+                    let endMins = startMins + totalExam + breakTime;
+                    if (endMins > 12 * 60) return false;
 
-                            // Fungsi validasi aturan ketat (Maks 12:00, Exact, Max per tingkat)
-                            function isValidChunk(chunk, newMapel) {
-                                let temp = [...chunk, newMapel];
-                                let maxM = temp.length;
-                                
-                                let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
-                                let totalExam = temp.reduce((s, m) => s + (parseInt(m.Durasi_Menit) || 90), 0);
-                                let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); 
-                                let endMins = startMins + totalExam + breakTime;
-                                if (endMins > 12 * 60) return false;
+                    let isSD = lvl.id === 'SD';
+                    let isSMP = lvl.id === 'SMP';
+                    let isSMA = lvl.id === 'SMA';
+                    let isKelasBawah = isSD && (tingkat >= 1 && tingkat <= 2);
+                    let isKelasAtasSD = isSD && (tingkat >= 3 && tingkat <= 6);
 
-                                if ((isSMP || isSMA) && isExact(newMapel) && chunk.some(x => isExact(x))) return false;
+                    if ((isSMP || isSMA) && isExact(newMapel) && chunk.some(x => isExact(x))) return false;
 
-                                if (isKelasBawah) {
-                                    if (maxM > 2) return false;
-                                    let hasBig = temp.some(x => parseInt(x.Durasi_Menit) > 60);
-                                    if (hasBig && maxM > 1) return false;
-                                } else if (isKelasAtasSD) {
-                                    if (maxM > 2) return false;
-                                    let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
-                                    if (countBig > 1) return false;
-                                } else if (isSMP) {
-                                    if (maxM > 3) return false;
-                                    if (maxM === 3) {
-                                        let d3 = chunks.filter(c => c.length === 3).length;
-                                        if (d3 >= 2) return false;
-                                        let count90Plus = temp.filter(x => parseInt(x.Durasi_Menit) >= 90).length;
-                                        if (count90Plus > 1) return false; 
-                                    }
-                                } else if (isSMA) {
-                                    if (maxM > 3) return false;
-                                    if (maxM === 3) {
-                                        let d3 = chunks.filter(c => c.length === 3).length;
-                                        if (d3 >= 3) return false;
-                                        let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
-                                        if (countBig > 2) return false;
-                                    }
-                                }
-                                return true;
-                            }
-
-                            for(let m of mapels) {
-                                let placed = false;
-                                
-                                // Prioritas hari: Berurutan secara deterministik, prioritaskan hari yang masih kosong
-                                let chunkIndices = chunks.map((c, idx) => idx);
-                                chunkIndices.sort((a, b) => chunks[a].length - chunks[b].length); 
-
-                                for(let idx of chunkIndices) {
-                                    if (isValidChunk(chunks[idx], m)) {
-                                        chunks[idx].push(m);
-                                        placed = true;
-                                        break;
-                                    }
-                                }
-
-                                if (!placed) {
-                                    for(let idx of chunkIndices) {
-                                        let dayChunk = chunks[idx];
-                                        let temp = [...dayChunk, m];
-                                        let maxM = temp.length;
-                                        let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
-                                        let totalExam = temp.reduce((s, x) => s + (parseInt(x.Durasi_Menit) || 90), 0);
-                                        let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
-                                        
-                                        if ((startMins + totalExam + breakTime) <= 12 * 60) {
-                                            if (isSD && maxM > 2) continue;
-                                            if ((isSMP || isSMA) && maxM > 3) continue;
-                                            
-                                            dayChunk.push(m);
-                                            placed = true;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (!placed) {
-                                    chunks[chunkIndices[0]].push(m);
-                                }
-                            }
-                            
-                            levelData[lvl.id].push({
-                                rombel: r,
-                                tingkat: i,
-                                chunks: chunks
-                            });
+                    if (isKelasBawah) {
+                        if (maxM > 2) return false;
+                        let hasBig = temp.some(x => parseInt(x.Durasi_Menit) > 60);
+                        if (hasBig && maxM > 1) return false;
+                    } else if (isKelasAtasSD) {
+                        if (maxM > 2) return false;
+                        let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
+                        if (countBig > 1) return false;
+                    } else if (isSMP) {
+                        if (maxM > 3) return false;
+                        if (maxM === 3) {
+                            let d3 = allChunksForRombel.filter(c => c.length === 3).length;
+                            if (d3 >= 2) return false;
+                            let count90Plus = temp.filter(x => parseInt(x.Durasi_Menit) >= 90).length;
+                            if (count90Plus > 1) return false;
+                        }
+                    } else if (isSMA) {
+                        if (maxM > 3) return false;
+                        if (maxM === 3) {
+                            let d3 = allChunksForRombel.filter(c => c.length === 3).length;
+                            if (d3 >= 3) return false;
+                            let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
+                            if (countBig > 2) return false;
                         }
                     }
+                    return true;
+                }
+
+                // LOGIKA KOMANDO: Ambil Mapel, pakukan di hari yang sama untuk SELURUH rombel di jenjang ini
+                for (let mName of uniqueMapels) {
+                    let targetRombels = [];
+                    for (let r in rombelMap) {
+                        let mObj = rombelMap[r].find(x => x.Mata_Pelajaran === mName);
+                        if (mObj) targetRombels.push({ rombel: r, mapelObj: mObj, tingkat: rombelTingkat[r] });
+                    }
+
+                    if (targetRombels.length === 0) continue;
+
+                    let placedDay = -1;
+                    let dayScores = [];
+
+                    for(let d=0; d<totalDays; d++) {
+                        let isValidForAll = true;
+                        let totalLoad = 0;
+                        for (let tr of targetRombels) {
+                            let chunk = rombelChunks[tr.rombel][d];
+                            totalLoad += chunk.length;
+                            if (!isValidChunk(rombelChunks[tr.rombel], d, tr.mapelObj, tr.tingkat)) {
+                                isValidForAll = false;
+                                break;
+                            }
+                        }
+                        if (isValidForAll) {
+                            dayScores.push({ day: d, score: totalLoad });
+                        }
+                    }
+
+                    if (dayScores.length > 0) {
+                        dayScores.sort((a,b) => a.score - b.score);
+                        placedDay = dayScores[0].day;
+                    }
+
+                    // Fallback 1: Jika mentok, loloskan sedikit aturan tapi TETAP jaga batas 12:00
+                    if (placedDay === -1) {
+                        for(let d=0; d<totalDays; d++) {
+                            let canFitJam12 = true;
+                            let totalLoad = 0;
+                            for (let tr of targetRombels) {
+                                let chunk = rombelChunks[tr.rombel][d];
+                                totalLoad += chunk.length;
+                                let temp = [...chunk, tr.mapelObj];
+                                let maxM = temp.length;
+                                let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
+                                let totalExam = temp.reduce((s, x) => s + (parseInt(x.Durasi_Menit) || 90), 0);
+                                let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
+
+                                if (startMins + totalExam + breakTime > 12 * 60) {
+                                    canFitJam12 = false; break;
+                                }
+                                if (lvl.id === 'SD' && maxM > 2) { canFitJam12 = false; break; }
+                                if ((lvl.id === 'SMP' || lvl.id === 'SMA') && maxM > 3) { canFitJam12 = false; break; }
+                            }
+                            if (canFitJam12) {
+                                if (placedDay === -1 || totalLoad < dayScores.score) {
+                                    placedDay = d;
+                                    dayScores = { day: d, score: totalLoad };
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallback 2: Kepepet banget
+                    if (placedDay === -1) {
+                        let minLoad = 999;
+                        for(let d=0; d<totalDays; d++) {
+                            let totalLoad = targetRombels.reduce((sum, tr) => sum + rombelChunks[tr.rombel][d].length, 0);
+                            if (totalLoad < minLoad) {
+                                minLoad = totalLoad;
+                                placedDay = d;
+                            }
+                        }
+                    }
+
+                    // Pakukan mapel ini ke hari yang terpilih untuk SEMUA rombel yang memilikinya
+                    for (let tr of targetRombels) {
+                        rombelChunks[tr.rombel][placedDay].push(tr.mapelObj);
+                    }
+                }
+
+                // Masukkan hasil ke levelData
+                for(let r in rombelMap) {
+                    levelData[lvl.id].push({
+                        rombel: r,
+                        tingkat: rombelTingkat[r],
+                        chunks: rombelChunks[r]
+                    });
                 }
             });
 
             // -------------------------------------------------------------
-            // TAHAP 3: SUSUN SESI MAPEL TANPA PENGAWAS DULU
+            // TAHAP 3: SUSUN SESI MAPEL (TANPA PENGAWAS DULU)
             // -------------------------------------------------------------
             availableDays.forEach((hari, hariIdx) => {
                 levels.forEach(lvl => {
                     let rombelDataList = levelData[lvl.id];
-                    if(rombelDataList.length === 0) return;
+                    if(!rombelDataList || rombelDataList.length === 0) return;
 
                     let hasMapel = rombelDataList.some(rd => rd.chunks[hariIdx] && rd.chunks[hariIdx].length > 0);
                     if(!hasMapel) return;
@@ -896,7 +928,7 @@
                         let endTimeSesi = new Date(currentTime.getTime() + dur * 60000);
 
                         let mapelSesiMap = {};
-                        let pengawasMap = {}; // Dikosongkan sementara untuk diisi fungsi reassignPengawas
+                        let pengawasMap = {}; 
 
                         allRombels.forEach(r => {
                             let rd = rombelDataList.find(x => x.rombel === r);
@@ -914,7 +946,7 @@
                             jam: s + 1,
                             waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi),
                             mapelUtama: mapelSesiMap,
-                            pengawas: pengawasMap, // Akan diisi otomatis setelah ini
+                            pengawas: pengawasMap, 
                             isBreak: false
                         });
 
