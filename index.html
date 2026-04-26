@@ -257,7 +257,7 @@
         <!-- HEADER MODE PREVIEW -->
         <div class="preview-only mb-6 text-center border-b border-schoolGold/30 pb-4">
             <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Preview Jadwal Sementara</h2>
-            <p class="text-sm text-gray-400">Harap periksa susunan jadwal. Gunakan tombol 'Kembali ke Atur Ujian' jika ingin merubah Mapel.</p>
+            <p class="text-sm text-gray-400">Jadwal mata pelajaran dikunci otomatis. Gunakan tombol 'Acak Ulang' hanya untuk merubah formasi Pengawas.</p>
         </div>
 
         <!-- HEADER MODE ADMIN -->
@@ -696,7 +696,7 @@
             // -------------------------------------------------------------
             levels.forEach(lvl => {
                 
-                // --- AWAL LOGIKA ACAK SERAGAM PER JENJANG ---
+                // --- AWAL LOGIKA MAPEL SERAGAM PER JENJANG (TIDAK ACAK) ---
                 let jenjangTmpls = [];
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
@@ -707,17 +707,25 @@
                     }
                 }
 
-                // Buat Master Mapel Order (Acak Baru Setiap Kali Generate)
+                // Buat Master Mapel Order (Deterministik, Dijamin Seragam)
                 let uniqueMapels = [...new Set(jenjangTmpls.map(t => t.Mata_Pelajaran))];
-                shuffleArray(uniqueMapels); // Mengacak secara global per jenjang
                 
-                // Prioritaskan Mapel Exact di awal array agar lebih mudah masuk jadwal tanpa bentrok hari
+                // Prioritaskan Mapel Exact di awal array, lalu durasi terpanjang, lalu abjad
                 uniqueMapels.sort((a,b) => {
                     let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
                     let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
-                    return exB - exA; 
+                    if(exA !== exB) return exB - exA; 
+                    
+                    let tmplA = jenjangTmpls.find(t => t.Mata_Pelajaran === a);
+                    let tmplB = jenjangTmpls.find(t => t.Mata_Pelajaran === b);
+                    let durA = tmplA ? (parseInt(tmplA.Durasi_Menit) || 0) : 0;
+                    let durB = tmplB ? (parseInt(tmplB.Durasi_Menit) || 0) : 0;
+                    
+                    if (durA !== durB) return durB - durA;
+
+                    return a.localeCompare(b);
                 });
-                // --- AKHIR LOGIKA ACAK SERAGAM ---
+                // --- AKHIR LOGIKA MAPEL SERAGAM ---
 
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
@@ -793,9 +801,8 @@
                             for(let m of mapels) {
                                 let placed = false;
                                 
-                                // Prioritas hari: Acak prioritas hari (untuk variasi saat Generate) lalu urutkan berdasarkan beban teringan
+                                // Prioritas hari: Berurutan secara deterministik, prioritaskan hari yang masih kosong
                                 let chunkIndices = chunks.map((c, idx) => idx);
-                                shuffleArray(chunkIndices); 
                                 chunkIndices.sort((a, b) => chunks[a].length - chunks[b].length); 
 
                                 for(let idx of chunkIndices) {
