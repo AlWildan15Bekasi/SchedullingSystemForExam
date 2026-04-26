@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Penjadwalan Pengawas Ujian</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- ExcelJS & FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        schoolBlue: '#0f274c', 
+                        schoolGold: '#dcb858',
+                        neonGold: '#fadb5f',
+                        darkBg: '#050b14',
+                    },
+                    boxShadow: {
+                        'neon': '0 0 15px rgba(220, 184, 88, 0.4)',
+                        'neon-hover': '0 0 25px rgba(220, 184, 88, 0.7)',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: radial-gradient(circle at top, #0f274c 0%, #050b14 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); filter: blur(3px); }
+            to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #050b14; }
+        ::-webkit-scrollbar-thumb { background: #dcb858; border-radius: 4px; }
+        
+        .glass-panel {
+            background: rgba(15, 39, 76, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(220, 184, 88, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .futuristic-input {
+            background: rgba(5, 11, 20, 0.6);
+            border: 1px solid rgba(220, 184, 88, 0.4);
+            color: #fadb5f;
+            transition: all 0.3s ease;
+        }
+        .futuristic-input:focus { border-color: #fadb5f; box-shadow: 0 0 10px rgba(220, 184, 88, 0.3); outline: none; }
+        .futuristic-input option { background-color: #0f274c; color: white; }
+
+        /* Gaya Tabel Matriks */
+        .matrix-table th, .matrix-table td { border: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 8px; }
+
+        /* Warna Tema per Tingkat */
+        .bg-header-sd { background-color: #4ade80 !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+        .bg-mapel-sd { background-color: #bbf7d0 !important; color: #000 !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-pengawas-sd { background-color: #166534 !important; color: white !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-nama-sd { background-color: #22c55e !important; color: white !important; border-bottom: 1px solid #166534 !important;}
+
+        .bg-header-smp { background-color: #60a5fa !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+        .bg-mapel-smp { background-color: #bfdbfe !important; color: #000 !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-pengawas-smp { background-color: #1e3a8a !important; color: white !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-nama-smp { background-color: #3b82f6 !important; color: white !important; border-bottom: 1px solid #1e3a8a !important;}
+
+        .bg-header-sma { background-color: #991b1b !important; color: white !important; border-bottom: 2px solid #000 !important; }
+        .bg-mapel-sma { background-color: #ef4444 !important; color: white !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-pengawas-sma { background-color: #450a0a !important; color: white !important; font-weight: bold; border-bottom: 2px solid #000 !important; }
+        .bg-nama-sma { background-color: #b91c1c !important; color: white !important; border-bottom: 1px solid #7f1d1d !important;}
+
+        .bg-white-cell { background-color: white !important; color: black !important; }
+        .border-black-custom { border: 1px solid black !important; }
+        .border-l-2-black { border-left: 2px solid black !important; }
+
+        .cyber-checkbox {
+            appearance: none; width: 20px; height: 20px;
+            background: rgba(5, 11, 20, 0.8);
+            border: 1px solid #dcb858; border-radius: 4px;
+            position: relative; cursor: pointer; transition: all 0.2s;
+        }
+        .cyber-checkbox:checked { background: #dcb858; box-shadow: 0 0 10px #dcb858; }
+        .cyber-checkbox:checked::after {
+            content: '✔'; position: absolute; color: #0f274c; font-size: 14px; font-weight: bold;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+
+        /* Tampilan Khusus Print */
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            body { background: white !important; color: black !important; }
+            .no-print, #landing-section, #setup-section, #dashboard-section, .control-panels-wrapper, #preview-actions { display: none !important; }
+            
+            body.print-sd .level-container:not(.sd-container) { display: none !important; }
+            body.print-smp .level-container:not(.smp-container) { display: none !important; }
+            body.print-sma .level-container:not(.sma-container) { display: none !important; }
+            
+            body.print-subjects-only .pengawas-row { display: none !important; }
+            body.print-subjects-only td[rowspan] { vertical-align: middle !important; }
+
+            #result-section { display: block !important; padding: 0 !important; margin: 0 !important; }
+            .glass-panel { background: white !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin-bottom: 20px !important;}
+            .matrix-table { width: 100% !important; font-size: 8px !important; border-collapse: collapse !important; }
+            .matrix-table th, .matrix-table td { padding: 2px !important; border: 1px solid black !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+
+        /* Mode Logic (Preview vs Admin) */
+        .mode-preview .admin-only { display: none !important; }
+        .mode-admin .preview-only { display: none !important; }
+    </style>
+</head>
+<body class="antialiased flex flex-col relative overflow-x-hidden">
+
+    <!-- Ornamen Latar Belakang -->
+    <div class="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-schoolBlue rounded-full blur-[120px] opacity-50 pointer-events-none z-[-1]"></div>
+    <div class="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-schoolGold rounded-full blur-[150px] opacity-20 pointer-events-none z-[-1]"></div>
+
+    <!-- UI Custom Toast (Notifikasi) -->
+    <div id="custom-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px]">
+        <div id="toast-bg" class="bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center">
+            <span id="toast-icon" class="mr-3 text-2xl">🔔</span>
+            <span id="toast-msg" class="font-bold tracking-wide">Pesan Notifikasi</span>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 0: HALAMAN UTAMA (LANDING PAGE)     -->
+    <!-- ========================================== -->
+    <div id="landing-section" class="flex-grow flex items-center justify-center p-4 fade-in">
+        <div class="text-center w-full max-w-4xl">
+            <img src="https://thumbs2.imgbox.com/56/33/5BfaWatk_t.png" alt="Logo Al Wildan" class="mx-auto h-32 mb-6 object-contain drop-shadow-[0_0_25px_rgba(255,255,255,0.4)]">
+            <h1 class="text-4xl md:text-5xl font-black text-schoolGold tracking-[0.2em] mb-4 uppercase">Al Wildan Islamic School</h1>
+            <p class="text-gray-300 text-lg mb-12 font-mono tracking-widest">Sistem Penjadwalan Pengawas Ujian V2.0</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+                <button id="btn-menu-setup" class="glass-panel hover:bg-schoolBlue/80 border-schoolGold border transition-all duration-300 transform hover:-translate-y-2 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-neon hover:shadow-neon-hover">
+                    <svg class="w-16 h-16 text-neonGold mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    <h2 class="text-xl font-bold text-white uppercase tracking-widest">Buat Jadwal Baru</h2>
+                    <p class="text-xs text-gray-400 mt-2">Atur tanggal, kelas, dan buat formasi pengawas otomatis.</p>
+                </button>
+                
+                <button id="btn-menu-admin" class="glass-panel hover:bg-schoolBlue/80 border-blue-400 border transition-all duration-300 transform hover:-translate-y-2 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(96,165,250,0.4)] hover:shadow-[0_0_25px_rgba(96,165,250,0.7)]">
+                    <svg class="w-16 h-16 text-blue-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <h2 class="text-xl font-bold text-white uppercase tracking-widest">Panel Admin Jadwal</h2>
+                    <p class="text-xs text-gray-400 mt-2">Buka jadwal yang tersimpan, cetak Excel, dan kelola pergantian guru.</p>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 1: PENGATURAN AWAL (FASE 1)         -->
+    <!-- ========================================== -->
+    <div id="setup-section" class="hidden flex-grow flex items-center justify-center p-4 fade-in">
+        <div class="glass-panel rounded-2xl w-full max-w-2xl overflow-hidden shadow-neon border-t-4 border-schoolGold relative">
+            <button id="btn-back-landing-1" class="absolute top-4 left-4 text-gray-400 hover:text-white">&larr; Kembali</button>
+            <div class="p-8 text-center relative border-b border-schoolGold/20 mt-4">
+                <h1 class="text-2xl font-black text-schoolGold tracking-[0.2em] uppercase">Pengaturan Dasar</h1>
+            </div>
+            
+            <form id="setup-form" class="p-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-schoolGold mb-2">Nama Ketua Pelaksana</label>
+                        <select id="ketua-pelaksana" required class="w-full px-4 py-2 rounded-lg futuristic-input teacher-dropdown"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-schoolGold mb-2">Tahun Ajaran</label>
+                        <select id="tahun-ajaran" required class="w-full px-4 py-2 rounded-lg futuristic-input">
+                            <option value="2024/2025">2024/2025</option>
+                            <option value="2025/2026" selected>2025/2026</option>
+                            <option value="2026/2027">2026/2027</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20 p-5 rounded-lg border border-white/10">
+                    <div>
+                        <label class="block text-sm font-semibold text-schoolGold mb-2">Tanggal Mulai Ujian</label>
+                        <input type="date" id="tgl-mulai" required class="w-full px-4 py-2 rounded-lg futuristic-input [color-scheme:dark]">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-schoolGold mb-2">Tanggal Selesai Ujian</label>
+                        <input type="date" id="tgl-selesai" required class="w-full px-4 py-2 rounded-lg futuristic-input [color-scheme:dark]">
+                    </div>
+                </div>
+
+                <div class="border-t border-white/10 pt-6 mt-4">
+                    <label class="block text-sm font-semibold text-schoolGold mb-3">Tim Distributor Soal (3 Orang)</label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <select id="distributor-1" required class="w-full px-3 py-2 rounded-lg futuristic-input text-sm teacher-dropdown"></select>
+                        <select id="distributor-2" required class="w-full px-3 py-2 rounded-lg futuristic-input text-sm teacher-dropdown"></select>
+                        <select id="distributor-3" required class="w-full px-3 py-2 rounded-lg futuristic-input text-sm teacher-dropdown"></select>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-schoolGold hover:bg-neonGold text-schoolBlue font-black tracking-widest py-3 px-4 rounded-lg transition duration-300 shadow-neon hover:shadow-neon-hover mt-4 uppercase">
+                    Pilih Kelas & Ujian &rarr;
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 2: DASHBOARD KONFIGURASI (FASE 1)   -->
+    <!-- ========================================== -->
+    <div id="dashboard-section" class="hidden flex-grow p-6 w-full max-w-6xl mx-auto fade-in">
+        <button id="btn-back-setup" class="mb-4 text-schoolGold hover:text-white font-bold flex items-center transition">
+            &larr; Kembali ke Pengaturan Dasar
+        </button>
+        <div class="mb-8 border-b border-schoolGold/30 pb-4">
+            <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Konfigurasi Rombel & Ujian</h2>
+            <p class="text-sm text-gray-400 font-mono">Pilih kelas yang aktif beserta jenis ujiannya.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+            <div class="glass-panel p-6 rounded-xl relative overflow-hidden group">
+                <h3 class="text-xl font-bold text-green-400 mb-6 border-l-4 border-green-400 pl-3">Tingkat SD</h3>
+                <div class="space-y-4" id="sd-container"></div>
+            </div>
+            <div class="glass-panel p-6 rounded-xl relative overflow-hidden group">
+                <h3 class="text-xl font-bold text-blue-400 mb-6 border-l-4 border-blue-400 pl-3">Tingkat SMP</h3>
+                <div class="space-y-4" id="smp-container"></div>
+            </div>
+            <div class="glass-panel p-6 rounded-xl relative overflow-hidden group">
+                <h3 class="text-xl font-bold text-red-400 mb-6 border-l-4 border-red-400 pl-3">Tingkat SMA</h3>
+                <div class="space-y-4" id="sma-container"></div>
+            </div>
+        </div>
+
+        <div class="text-center">
+            <button id="btn-generate" class="bg-schoolGold hover:bg-neonGold text-schoolBlue font-black py-4 px-10 rounded-full shadow-neon hover:shadow-neon-hover transition transform hover:scale-105 text-lg tracking-widest uppercase">
+                Proses Jadwal (Preview) &rarr;
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 3: RESULT (HASIL MATRIKS & PANEL)   -->
+    <!-- ========================================== -->
+    <!-- Elemen ini dipakai bergantian oleh Mode Preview dan Mode Admin via class -->
+    <div id="result-section" class="hidden flex-grow p-4 md:p-8 w-full max-w-[1400px] mx-auto fade-in mode-preview">
+        
+        <!-- HEADER MODE PREVIEW -->
+        <div class="preview-only mb-6 text-center border-b border-schoolGold/30 pb-4">
+            <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Preview Jadwal Sementara</h2>
+            <p class="text-sm text-gray-400">Harap periksa susunan jadwal. Gunakan tombol 'Acak Ulang' di bawah jika ingin mencari kombinasi lain.</p>
+        </div>
+
+        <!-- HEADER MODE ADMIN -->
+        <div class="admin-only flex flex-col md:flex-row justify-between items-center mb-6 glass-panel p-4 rounded-xl no-print gap-4">
+            <button id="btn-back-landing-admin" class="text-blue-400 hover:text-white font-bold flex items-center transition uppercase tracking-widest">
+                &larr; Keluar Panel
+            </button>
+            <div class="flex gap-2">
+                <button id="btn-export-all" class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow flex items-center transition text-sm uppercase">
+                    Ekspor Semua Ke Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- WADAH MATRIKS TABEL (Ditampilkan di kedua mode) -->
+        <div id="matrix-containers" class="space-y-12"></div>
+
+        <!-- TOMBOL AKSI MODE PREVIEW (Refresh & Submit) -->
+        <div id="preview-actions" class="preview-only mt-12 flex flex-col sm:flex-row justify-center gap-6 no-print">
+            <button id="btn-refresh" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Acak Ulang (Refresh)
+            </button>
+            <button id="btn-submit" class="bg-green-600 hover:bg-green-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(22,163,74,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                Simpan & Setujui Jadwal
+            </button>
+        </div>
+
+        <!-- PANEL KONTROL MODE ADMIN (Disembunyikan saat Preview) -->
+        <div class="admin-only control-panels-wrapper grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 no-print">
+            <!-- PANEL STANDBY -->
+            <div class="glass-panel p-6 rounded-xl border-t-2 border-green-400">
+                <h3 class="text-lg font-bold text-green-400 mb-4 flex items-center uppercase">Standby Radar (Cek Guru Kosong)</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <select id="cek-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari"></select>
+                    <select id="cek-sesi" class="w-full p-2 rounded futuristic-input text-sm filter-sesi"></select>
+                </div>
+                <div class="border border-white/10 rounded-lg p-3 bg-black/30 h-48 overflow-y-auto">
+                    <ul id="list-guru-kosong" class="text-sm text-gray-300 space-y-2"></ul>
+                </div>
+            </div>
+
+            <!-- PANEL TRACKER -->
+            <div class="glass-panel p-6 rounded-xl border-t-2 border-schoolGold">
+                <h3 class="text-lg font-bold text-schoolGold mb-4 flex items-center uppercase">Personal Tracker (Cek Jadwal Pribadi)</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <select id="cek-personal-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari"></select>
+                    <select id="cek-personal-guru" class="w-full p-2 rounded futuristic-input text-sm teacher-dropdown"></select>
+                </div>
+                <div class="border border-white/10 rounded-lg p-3 bg-black/30 h-48 overflow-y-auto">
+                    <ul id="list-jadwal-personal" class="text-sm text-gray-300 space-y-2"></ul>
+                </div>
+            </div>
+
+            <!-- PANEL REPLACEMENT -->
+            <div class="glass-panel p-6 rounded-xl border-t-2 border-blue-400 md:col-span-2">
+                <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center uppercase text-center">Replacement Protocol (Ganti Pengawas)</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                    <div><label class="block text-xs text-gray-400 mb-1">Hari</label><select id="rep-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari"></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Sesi</label><select id="rep-sesi" class="w-full p-2 rounded futuristic-input text-sm filter-sesi"></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Tingkat</label><select id="rep-level" class="w-full p-2 rounded futuristic-input text-sm"><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA">SMA</option></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Guru Izin (Keluar)</label><select id="rep-guru-izin" class="w-full p-2 rounded futuristic-input text-sm teacher-dropdown"></select></div>
+                    <div><label class="block text-xs text-neonGold mb-1">Guru Pengganti (Masuk)</label><select id="rep-guru-pengganti" class="w-full p-2 rounded futuristic-input text-sm border-neonGold"></select></div>
+                    <div class="md:col-span-5 flex justify-end mt-2">
+                        <button id="btn-replace" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-8 rounded shadow transition tracking-widest uppercase">Eksekusi</button>
+                    </div>
+                </div>
+                <div id="rep-alert" class="mt-4 text-sm font-bold text-center hidden p-3 rounded"></div>
+            </div>
+
+            <!-- PANEL WORKLOAD -->
+            <div class="glass-panel p-6 rounded-xl border-t-2 border-purple-400 md:col-span-2">
+                <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center uppercase text-center">Workload Analytics (Beban Kerja Sesi)</h3>
+                <div id="rekap-sesi-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logika Javascript -->
+    <script>
+        // Setup API Backend Google Apps Script
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjOGDb8-NdCzVFyouZgEWwOMuiut1xf47KJ3-YKZTL1chKneet-9WVis3x3WwiI-Vy/exec';
+
+        // Variabel Data
+        let dummyTeachers = []; // Hanya untuk simpan list nama di dropdown
+        let masterGurus = [];   // Simpan objek guru utuh (beserta Keterangan & Jenjang)
+        let masterTemplates = [];
+
+        let currentScheduleData = {}; 
+        let availableDays = []; 
+        let savedSetupData = {}; 
+
+        // Fungsi menampilkan notifikasi
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('custom-toast');
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').innerText = isError ? '⚠️' : '✅';
+            const bg = document.getElementById('toast-bg');
+            bg.className = isError 
+                ? 'bg-red-900 border-2 border-red-500 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center' 
+                : 'bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center';
+            
+            t.classList.remove('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
+            setTimeout(() => {
+                t.classList.add('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Fetch data awal dari Google Apps Script
+        async function loadBackendData() {
+            showToast("Mengambil data dari database...", false);
+            try {
+                let res = await fetch(SCRIPT_URL + '?action=getInitialData');
+                let data = await res.json();
+                if (data.status === 'success') {
+                    if (data.data.gurus && data.data.gurus.length > 0) {
+                        masterGurus = data.data.gurus;
+                        dummyTeachers = [];
+                        masterGurus.forEach(g => dummyTeachers.push(g.Nama_Guru));
+                    }
+                    if (data.data.templates && data.data.templates.length > 0) {
+                        masterTemplates = data.data.templates;
+                    }
+                    populateTeacherDropdowns();
+                    populateJenisUjianDropdowns();
+                    showToast("Data berhasil dimuat!");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Gagal memuat data. Periksa URL Apps Script.", true);
+            }
+        }
+        
+        function populateTeacherDropdowns() {
+            document.querySelectorAll('.teacher-dropdown').forEach(select => {
+                if(select.id === 'rep-guru-pengganti') return; 
+                select.innerHTML = `<option value="">-- Pilih Guru --</option>`;
+                dummyTeachers.forEach(t => select.innerHTML += `<option value="${t}">${t}</option>`);
+            });
+        }
+
+        // Ekstrak Jenis Ujian dari Template dan Tampilkan di Dropdown
+        function populateJenisUjianDropdowns() {
+            let jenisSet = new Set();
+            masterTemplates.forEach(t => {
+                if (t.Jenis_Ujian) jenisSet.add(t.Jenis_Ujian);
+            });
+            
+            let optionsHTML = '<option value="">-- Non-Aktif --</option>';
+            jenisSet.forEach(j => {
+                optionsHTML += `<option value="${j}">${j}</option>`;
+            });
+            
+            document.querySelectorAll('[id^="uji-"]').forEach(select => {
+                select.innerHTML = optionsHTML;
+            });
+        }
+
+        window.onload = () => {
+            loadBackendData();
+        };
+
+        const secLanding = document.getElementById('landing-section');
+        const secSetup = document.getElementById('setup-section');
+        const secDashboard = document.getElementById('dashboard-section');
+        const secResult = document.getElementById('result-section');
+
+        function hideAll() {
+            secLanding.classList.add('hidden');
+            secSetup.classList.add('hidden');
+            secDashboard.classList.add('hidden');
+            secResult.classList.add('hidden');
+        }
+
+        document.getElementById('btn-menu-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); });
+        document.getElementById('btn-back-landing-1').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
+        document.getElementById('btn-back-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); });
+        document.getElementById('btn-back-landing-admin').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
+
+        function renderDashboardRow(containerId, start, end, prefix) {
+            const container = document.getElementById(containerId);
+            for(let i=start; i<=end; i++) {
+                container.innerHTML += `
+                <div class="flex items-center gap-3 bg-black/30 p-2 rounded border border-white/10 hover:border-schoolGold/50 transition">
+                    <input type="checkbox" id="chk-${prefix}-${i}" value="${i}" class="cyber-checkbox" checked>
+                    <label for="chk-${prefix}-${i}" class="font-bold text-sm w-16 text-gray-200">Kls ${i}</label>
+                    <select id="uji-${prefix}-${i}" class="flex-grow px-2 py-1 text-xs rounded futuristic-input">
+                        <option value="">-- Sedang Memuat --</option>
+                    </select>
+                </div>`;
+            }
+        }
+        renderDashboardRow('sd-container', 1, 6, 'sd');
+        renderDashboardRow('smp-container', 7, 9, 'smp');
+        renderDashboardRow('sma-container', 10, 12, 'sma');
+
+        document.getElementById('setup-form').addEventListener('submit', (e) => {
+            e.preventDefault(); 
+            savedSetupData.thn = document.getElementById('tahun-ajaran').value;
+            savedSetupData.ketua = document.getElementById('ketua-pelaksana').value;
+            savedSetupData.tglMulai = document.getElementById('tgl-mulai').value;
+            hideAll(); 
+            secDashboard.classList.remove('hidden');
+        });
+
+        // MENU 2: LOAD DARI DATABASE (ADMIN PANEL)
+        document.getElementById('btn-menu-admin').addEventListener('click', async () => {
+            showToast("Memuat jadwal dari DB...", false);
+            try {
+                let res = await fetch(SCRIPT_URL + '?action=getSchedule');
+                let data = await res.json();
+                if (data.status === 'success' && data.data) {
+                    currentScheduleData = data.data;
+                    availableDays = Object.keys(currentScheduleData);
+                    
+                    secResult.classList.remove('mode-preview');
+                    secResult.classList.add('mode-admin');
+
+                    renderAllMatrices();
+                    populateDayFilters();
+                    updateRekapSesi();
+                    updatePersonalSchedule();
+
+                    hideAll();
+                    secResult.classList.remove('hidden');
+                    showToast("Jadwal berhasil dimuat!");
+                } else {
+                    showToast("Belum ada jadwal tersimpan.", true);
+                }
+            } catch(e) {
+                console.error(e); 
+                showToast("Gagal memuat data.", true);
+            }
+        });
+
+        // Format Date ke Jam WIB
+        function formatTime(dateObj) {
+            let h = String(dateObj.getHours()).padStart(2, '0');
+            let m = String(dateObj.getMinutes()).padStart(2, '0');
+            return `${h}.${m} WIB`;
+        }
+
+        // Fungsi Acak Array
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId]; array[curId] = array[randId]; array[randId] = tmp;
+            }
+            return array;
+        }
+
+        document.getElementById('btn-generate').addEventListener('click', () => {
+            buildScheduleState(false);
+            secResult.classList.remove('mode-admin');
+            secResult.classList.add('mode-preview');
+            renderAllMatrices();
+            hideAll();
+            secResult.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-refresh').addEventListener('click', () => {
+            buildScheduleState(true);
+            renderAllMatrices();
+            showToast("Jadwal diacak ulang dengan formasi baru!");
+        });
+
+        document.getElementById('btn-submit').addEventListener('click', async () => {
+            showToast("Menyimpan jadwal ke DB...", false);
+            try {
+                let payload = {
+                    tahunAjaran: savedSetupData.thn,
+                    scheduleData: currentScheduleData
+                };
+                let res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'saveSchedule', payload: payload })
+                });
+                let data = await res.json();
+                if (data.status === 'success') {
+                    showToast("Jadwal berhasil disimpan secara permanen!");
+                    hideAll();
+                    secLanding.classList.remove('hidden');
+                } else {
+                    showToast("Error: " + data.message, true);
+                }
+            } catch(e) {
+                console.error(e);
+                showToast("Gagal koneksi ke DB.", true);
+            }
+        });
+
+        // FUNGSI BARU: Ambil Daftar Guru SD 1-3 yang Eksklusif
+        function getActiveDedicatedGurus() {
+            let dedicated = new Set();
+            if(!currentScheduleData) return dedicated;
+            
+            // Kumpulkan semua rombel SD 1-3 yang sedang aktif di jadwal
+            let sdRombels = [];
+            for(let h in currentScheduleData) {
+                if(currentScheduleData[h] && currentScheduleData[h]['SD'] && currentScheduleData[h]['SD'].rombels) {
+                    currentScheduleData[h]['SD'].rombels.forEach(r => {
+                        if(r.match(/^[123]\s/)) { // Cocokkan rombel yang diawali angka 1, 2, atau 3
+                            sdRombels.push(r);
+                        }
+                    });
+                }
+            }
+            
+            // Cocokkan nama rombel tersebut dengan kolom Keterangan di Master Guru
+            masterGurus.forEach(g => {
+                if(g.Keterangan) {
+                    sdRombels.forEach(r => {
+                        if(g.Keterangan.includes(r)) dedicated.add(g.Nama_Guru);
+                    });
+                }
+            });
+            return dedicated;
+        }
+
+        // ==============================================================
+        // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL & ATURAN PAKEM KETAT
+        // ==============================================================
+        function buildScheduleState(isRefresh = false) {
+            currentScheduleData = {}; 
+            const startDate = new Date(savedSetupData.tglMulai || new Date());
+            
+            let levelData = { 'SD': [], 'SMP': [], 'SMA': [] };
+            let maxDaysOverall = 0;
+
+            const levels = [
+                { id: 'SD', prefix: 'sd', start: 1, end: 6 },
+                { id: 'SMP', prefix: 'smp', start: 7, end: 9 },
+                { id: 'SMA', prefix: 'sma', start: 10, end: 12 }
+            ];
+
+            // -------------------------------------------------------------
+            // TAHAP 1: EKSTRAK & DISTRIBUSI MAPEL (ATURAN BEBAN UJIAN)
+            // -------------------------------------------------------------
+            levels.forEach(lvl => {
+                for(let i = lvl.start; i <= lvl.end; i++) {
+                    let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
+                    let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
+                    
+                    if(chk && chk.checked && ujiSelect.value !== "") {
+                        let jenis = ujiSelect.value;
+                        let tmpls = masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i));
+                        
+                        let rombelMap = {};
+                        tmpls.forEach(t => {
+                            if(!rombelMap[t.Kelas_Rombel]) rombelMap[t.Kelas_Rombel] = [];
+                            rombelMap[t.Kelas_Rombel].push(t);
+                        });
+
+                        for(let r in rombelMap) {
+                            let mapels = rombelMap[r];
+                            // Sort mapel: durasi terbesar didahulukan agar diproses duluan oleh sistem bin-packing
+                            mapels.sort((a,b) => (parseInt(b.Durasi_Menit) || 0) - (parseInt(a.Durasi_Menit) || 0));
+
+                            let chunks = [];
+                            let isSD = lvl.id === 'SD';
+                            
+                            // UPDATE REVISI: Pemisahan SD 1-2 dan SD 3-6
+                            let isKelasBawah = isSD && (i >= 1 && i <= 2); 
+                            let isKelasAtasSD = isSD && (i >= 3 && i <= 6);
+
+                            for(let m of mapels) {
+                                let dur = parseInt(m.Durasi_Menit) || 90;
+                                let placed = false;
+
+                                for(let d = 0; d < chunks.length; d++) {
+                                    let dayChunk = chunks[d];
+                                    
+                                    if(isKelasBawah) {
+                                        // SD 1-2: Max 1 jika ada yg >60m. Max 2 jika semua <=60m
+                                        let hasBig = dayChunk.some(x => parseInt(x.Durasi_Menit) > 60);
+                                        if(dur <= 60 && !hasBig && dayChunk.length < 2) {
+                                            dayChunk.push(m); placed = true; break;
+                                        }
+                                    } else if (isKelasAtasSD) {
+                                        // SD 3-6: Max 2. Dilarang ada dua mapel >60m di hari yg sama
+                                        if(dayChunk.length < 2) {
+                                            let hasBig = dayChunk.some(x => parseInt(x.Durasi_Menit) > 60);
+                                            if(!(hasBig && dur > 60)) {
+                                                dayChunk.push(m); placed = true; break;
+                                            }
+                                        }
+                                    } else if (lvl.id === 'SMP') {
+                                        // SMP: Max 3 (hanya 2 hari). 3 mapel syaratnya max 90m semua
+                                        if(dayChunk.length < 2) {
+                                            dayChunk.push(m); placed = true; break;
+                                        } else if (dayChunk.length === 2) {
+                                            let daysWith3Count = chunks.filter(c => c.length === 3).length;
+                                            if (daysWith3Count < 2) {
+                                                let allAllowed = dur <= 90 && dayChunk.every(x => parseInt(x.Durasi_Menit) <= 90);
+                                                if (allAllowed) {
+                                                    dayChunk.push(m); placed = true; break;
+                                                }
+                                            }
+                                        }
+                                    } else if (lvl.id === 'SMA') {
+                                        // SMA: Max 3 (hanya 3 hari). 3 mapel syaratnya mapel > 60m maks 2.
+                                        if (dayChunk.length < 2) {
+                                            dayChunk.push(m); placed = true; break;
+                                        } else if (dayChunk.length === 2) {
+                                            let daysWith3Count = chunks.filter(c => c.length === 3).length;
+                                            if (daysWith3Count < 3) {
+                                                let bigCount = dayChunk.filter(x => parseInt(x.Durasi_Menit) > 60).length + (dur > 60 ? 1 : 0);
+                                                if (bigCount <= 2) {
+                                                    dayChunk.push(m); placed = true; break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if(!placed) chunks.push([m]); // Bikin hari baru
+                            }
+
+                            if(chunks.length > maxDaysOverall) maxDaysOverall = chunks.length;
+                            
+                            levelData[lvl.id].push({
+                                rombel: r,
+                                tingkat: i,
+                                chunks: chunks
+                            });
+                        }
+                    }
+                }
+            });
+
+            // -------------------------------------------------------------
+            // TAHAP 2: DAFTAR HARI & INISIALISASI WORKLOAD GURU
+            // -------------------------------------------------------------
+            availableDays = [];
+            let currDate = new Date(startDate);
+            if(currDate.getDay() === 0) currDate.setDate(currDate.getDate() + 1);
+            if(currDate.getDay() === 6) currDate.setDate(currDate.getDate() + 2);
+
+            for(let d = 0; d < maxDaysOverall; d++) {
+                let dStr = currDate.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+                availableDays.push(dStr);
+                currentScheduleData[dStr] = { SD: null, SMP: null, SMA: null };
+                
+                currDate.setDate(currDate.getDate() + 1);
+                if(currDate.getDay() === 0) currDate.setDate(currDate.getDate() + 1);
+                if(currDate.getDay() === 6) currDate.setDate(currDate.getDate() + 2);
+            }
+
+            let workload = {};
+            masterGurus.forEach(g => workload[g.Nama_Guru] = 0);
+            let assignedGlobal = {}; // Anti-bentrok lintas jenjang
+
+            // Identifikasi Guru SD 1-3 Eksklusif (Hanya ngajar di kelasnya sampai tua wkwk)
+            let dedicatedSD13 = new Set();
+            if(levelData['SD']) {
+                levelData['SD'].forEach(rd => {
+                    if(rd.tingkat >= 1 && rd.tingkat <= 3) {
+                        masterGurus.forEach(g => {
+                            if(g.Keterangan && g.Keterangan.includes(rd.rombel)) {
+                                dedicatedSD13.add(g.Nama_Guru);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // -------------------------------------------------------------
+            // TAHAP 3: SUSUN SESI & PLOTTING GURU PENGAWAS
+            // -------------------------------------------------------------
+            availableDays.forEach((hari, hariIdx) => {
+                assignedGlobal[hari] = {};
+
+                levels.forEach(lvl => {
+                    let rombelDataList = levelData[lvl.id];
+                    if(rombelDataList.length === 0) return;
+
+                    let hasMapel = rombelDataList.some(rd => rd.chunks[hariIdx] && rd.chunks[hariIdx].length > 0);
+                    if(!hasMapel) return;
+
+                    let allRombels = rombelDataList.map(rd => rd.rombel);
+                    let maxMapelInDay = 0;
+                    let sessionMaxDurations = [0, 0, 0];
+
+                    rombelDataList.forEach(rd => {
+                        let chunk = rd.chunks[hariIdx] || [];
+                        if(chunk.length > maxMapelInDay) maxMapelInDay = chunk.length;
+                        chunk.forEach((c, idx) => {
+                            let dur = parseInt(c.Durasi_Menit) || 90;
+                            if(dur > sessionMaxDurations[idx]) sessionMaxDurations[idx] = dur;
+                        });
+                    });
+
+                    if(maxMapelInDay === 0) return;
+
+                    let dailySessions = [];
+                    // Pakem Waktu Dzikir (15m jika >2 mapel, 50m jika <=2)
+                    let dzikirDur = maxMapelInDay > 2 ? 15 : 50;
+                    let currentTime = new Date(2000, 0, 1, 7, 0);
+                    let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
+                    
+                    let dzikirMap = {};
+                    allRombels.forEach(r => dzikirMap[r] = maxMapelInDay > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
+
+                    dailySessions.push({
+                        jam: '-',
+                        waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir),
+                        mapelUtama: dzikirMap,
+                        isBreak: true
+                    });
+
+                    // Sesi 1 selalu jam 08.00 jika mapel <= 2, atau lanjut 07.15 jika mapel > 2
+                    currentTime = maxMapelInDay > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
+
+                    for(let s = 0; s < maxMapelInDay; s++) {
+                        if(!assignedGlobal[hari][s+1]) assignedGlobal[hari][s+1] = new Set();
+                        
+                        let dur = sessionMaxDurations[s];
+                        let endTimeSesi = new Date(currentTime.getTime() + dur * 60000);
+
+                        let mapelSesiMap = {};
+                        let pengawasMap = {};
+
+                        allRombels.forEach(r => {
+                            let rd = rombelDataList.find(x => x.rombel === r);
+                            let chunk = rd.chunks[hariIdx] || [];
+                            let isUjian = chunk[s];
+
+                            if(isUjian) {
+                                mapelSesiMap[r] = isUjian.Mata_Pelajaran;
+
+                                let tingkat = rd.tingkat;
+                                let jenjang = lvl.id;
+                                
+                                if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
+                                    // SD KLS 1-3: Pengawas sesuai "Keterangan" di Sheet Master Guru
+                                    let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
+                                    let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
+                                    pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
+                                    
+                                    // Tandai sedang mengawas agar tidak ditarik di ruangan/jenjang lain di jam yang sama
+                                    names.forEach(n => assignedGlobal[hari][s+1].add(n));
+                                } else {
+                                    // KLS 4-12: Filter 1 pengawas (Cek Jenjang, Beban Kerja, dan Anti-Bentrok)
+                                    let availableForRoom = masterGurus.filter(g => {
+                                        if(g.Nama_Guru === savedSetupData.ketua) return false;
+                                        if(g.Jenjang_Diajar !== jenjang) return false; // Filter sesuai Jenjang_Diajar
+                                        if(dedicatedSD13.has(g.Nama_Guru)) return false; // ATURAN REVISI: Guru SD 1-3 dilarang ngawas di kelas lain
+                                        if(assignedGlobal[hari][s+1].has(g.Nama_Guru)) return false; // Anti-Bentrok Global
+                                        return true;
+                                    });
+
+                                    let picked = "-TBA-";
+                                    if(availableForRoom.length > 0) {
+                                        // Prioritaskan guru dengan workload paling sedikit agar adil merata
+                                        availableForRoom.sort((a, b) => {
+                                            let diff = workload[a.Nama_Guru] - workload[b.Nama_Guru];
+                                            if (diff === 0 && isRefresh) return Math.random() - 0.5; // Jika direfresh, acak yang bebannya sama
+                                            return diff;
+                                        });
+                                        
+                                        picked = availableForRoom[0].Nama_Guru;
+                                        workload[picked]++; // Tambah beban kerjanya
+                                        assignedGlobal[hari][s+1].add(picked); // Masukkan ke radar Anti-Bentrok
+                                    }
+                                    pengawasMap[r] = [picked]; // Cukup 1 Pengawas
+                                }
+                            } else {
+                                mapelSesiMap[r] = "-"; 
+                            }
+                        });
+
+                        dailySessions.push({
+                            jam: s + 1,
+                            waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi),
+                            mapelUtama: mapelSesiMap,
+                            pengawas: pengawasMap,
+                            isBreak: false
+                        });
+
+                        currentTime = endTimeSesi;
+
+                        // Aturan Istirahat
+                        if (s === 0 && maxMapelInDay > 1) { // Istirahat 1 (30 Menit)
+                            let breakEnd = new Date(currentTime.getTime() + 30 * 60000); 
+                            let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
+                            dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
+                            currentTime = breakEnd;
+                        } else if (s === 1 && maxMapelInDay > 2) { // Istirahat 2 (15 Menit)
+                            let breakEnd = new Date(currentTime.getTime() + 15 * 60000); 
+                            let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
+                            dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
+                            currentTime = breakEnd;
+                        }
+                    }
+
+                    currentScheduleData[hari][lvl.id] = {
+                        rombels: allRombels,
+                        sessions: dailySessions
+                    };
+                });
+            });
+        }
+
+        // TAMPILKAN MATRIKS JADWAL
+        function renderAllMatrices() {
+            const container = document.getElementById('matrix-containers');
+            container.innerHTML = '';
+            const thn = savedSetupData.thn || "2025/2026";
+
+            ['SD', 'SMP', 'SMA'].forEach(level => {
+                let allRombels = [];
+                for(let h of availableDays) { if(currentScheduleData[h] && currentScheduleData[h][level]) { allRombels = currentScheduleData[h][level].rombels; break; } }
+                if(allRombels.length === 0) return;
+
+                let color = level === 'SD' ? 'green' : (level === 'SMP' ? 'blue' : 'red');
+                let lvlLC = level.toLowerCase();
+
+                let html = `
+                <div class="glass-panel p-6 rounded-xl level-container ${lvlLC}-container">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 no-print gap-4">
+                        <h3 class="text-2xl font-black text-${color}-400 uppercase">Jadwal ${level}</h3>
+                        <div class="flex flex-wrap gap-2 admin-only">
+                            <button onclick="exportLevelJS('${level}', false)" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Ekspor Excel Pengawas</button>
+                            <button onclick="exportLevelJS('${level}', true)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Jadwal Ujian Siswa</button>
+                            <button onclick="printSubjectsOnly('${level}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Cetak Jadwal Pelajaran</button>
+                        </div>
+                    </div>
+                    
+                    <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
+                        <div class="text-center mb-6 border-b-[3px] border-black pb-4">
+                            <h1 class="text-xl font-black uppercase">JADWAL UJIAN - TINGKAT ${level}</h1>
+                            <h2 class="text-lg font-bold uppercase">AL-WILDAN ISLAMIC SCHOOL BEKASI</h2>
+                            <p class="text-md font-bold uppercase">TAHUN AJARAN ${thn}</p>
+                        </div>
+                        <div class="w-full overflow-x-auto">
+                            <table id="table-${level}" class="matrix-table w-full text-[10px] sm:text-xs">
+                                <thead>
+                                    <tr>
+                                        <th class="bg-header-${lvlLC} w-32 border-black-custom border-l-2-black">Hari, Tanggal</th>
+                                        <th class="bg-header-${lvlLC} w-12 border-black-custom">JAM KE</th>
+                                        <th class="bg-header-${lvlLC} w-36 border-black-custom">WAKTU</th>
+                                        ${allRombels.map(r => `<th class="bg-header-${lvlLC} border-black-custom border-l-2-black">${r}</th>`).join('')}
+                                    </tr>
+                                    <tr>
+                                        <th colspan="3" class="bg-white-cell border-black-custom"></th>
+                                        ${allRombels.map(() => `<th class="bg-mapel-${lvlLC} border-black-custom border-l-2-black">MAPEL</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                availableDays.forEach(hari => {
+                    const data = currentScheduleData[hari] ? currentScheduleData[hari][level] : null;
+                    if(!data) return;
+                    
+                    let totalRowSpanHari = 0;
+                    data.sessions.forEach(s => { totalRowSpanHari += (!s.isBreak && Object.keys(s.pengawas || {}).length > 0) ? 2 : 1; });
+
+                    data.sessions.forEach((sesi, i) => {
+                        html += `<tr>`;
+                        if(i === 0) html += `<td rowspan="${totalRowSpanHari}" class="font-bold bg-white-cell border-black-custom">${hari}</td>`;
+                        html += `<td class="font-bold bg-white-cell border-black-custom">${sesi.jam}</td><td class="font-bold bg-white-cell border-black-custom">${sesi.waktu}</td>`;
+                        
+                        if(sesi.isBreak) {
+                            // Untuk waktu istirahat
+                            html += `<td colspan="${allRombels.length}" class="font-bold text-sm bg-gray-200 border-black-custom border-l-2-black uppercase tracking-widest">${sesi.mapelUtama[allRombels[0]] || ''}</td>`;
+                        } else {
+                            // Mapel per rombel
+                            allRombels.forEach((r) => html += `<td class="font-bold text-sm bg-white-cell border-black-custom border-l-2-black">${sesi.mapelUtama[r] || '-'}</td>`);
+                        }
+                        html += `</tr>`;
+
+                        if(!sesi.isBreak && Object.keys(sesi.pengawas || {}).length > 0) {
+                            html += `<tr class="pengawas-row"><td colspan="2" class="bg-pengawas-${lvlLC} font-bold text-right pr-4 border-black-custom">Pengawas</td>`;
+                            allRombels.forEach(rom => {
+                                let g = sesi.pengawas[rom] || [];
+                                html += `<td class="p-0 bg-nama-${lvlLC} align-top border-black-custom border-l-2-black">${g.map(name => `<div class="bg-nama-${lvlLC} p-1 border-b border-black/20">${name}</div>`).join('')}</td>`;
+                            });
+                            html += `</tr>`;
+                        }
+                    });
+                });
+                html += `</tbody></table></div></div></div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        const hexStyles = {
+            'bg-header-sd': { f: 'FF4ADE80', c: 'FF000000', b: true },
+            'bg-mapel-sd': { f: 'FFBBF7D0', c: 'FF000000', b: true },
+            'bg-pengawas-sd': { f: 'FF166534', c: 'FFFFFFFF', b: true },
+            'bg-nama-sd': { f: 'FF22C55E', c: 'FFFFFFFF', b: false },
+            'bg-header-smp': { f: 'FF60A5FA', c: 'FF000000', b: true },
+            'bg-mapel-smp': { f: 'FFBFDBFE', c: 'FF000000', b: true },
+            'bg-pengawas-smp': { f: 'FF1E3A8A', c: 'FFFFFFFF', b: true },
+            'bg-nama-smp': { f: 'FF3B82F6', c: 'FFFFFFFF', b: false },
+            'bg-header-sma': { f: 'FF991B1B', c: 'FFFFFFFF', b: true },
+            'bg-mapel-sma': { f: 'FFEF4444', c: 'FFFFFFFF', b: true },
+            'bg-pengawas-sma': { f: 'FF450A0A', c: 'FFFFFFFF', b: true },
+            'bg-nama-sma': { f: 'FFB91C1C', c: 'FFFFFFFF', b: false },
+            'bg-white-cell': { f: 'FFFFFFFF', c: 'FF000000', b: false },
+            'bg-gray-200': { f: 'FFE5E7EB', c: 'FF000000', b: true }
+        };
+
+        async function processTableToExcel(ws, tableId, level, skipPengawas) {
+            const table = document.getElementById(tableId);
+            if(!table) return;
+
+            const thn = savedSetupData.thn || "2025/2026";
+
+            ws.mergeCells(`A1:H1`);
+            let cellKop1 = ws.getCell(`A1`);
+            cellKop1.value = skipPengawas ? `JADWAL UJIAN SISWA - ${level}` : `JADWAL PENGAWAS UJIAN - ${level}`;
+            cellKop1.font = { size: 16, bold: true, name: 'Arial' };
+            cellKop1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            ws.mergeCells(`A2:H2`);
+            let cellKop2 = ws.getCell(`A2`);
+            cellKop2.value = "AL-WILDAN ISLAMIC SCHOOL BEKASI";
+            cellKop2.font = { size: 14, bold: true, name: 'Arial' };
+            cellKop2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            ws.mergeCells(`A3:H3`);
+            let cellKop3 = ws.getCell(`A3`);
+            cellKop3.value = `TAHUN AJARAN ${thn}`;
+            cellKop3.font = { size: 12, bold: true, name: 'Arial' };
+            cellKop3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            let excelRowIdx = 5;
+            const rows = table.rows;
+            let skipMap = {};
+
+            for(let r = 0; r < rows.length; r++) {
+                let htmlRow = rows[r];
+                if(skipPengawas && htmlRow.classList.contains('pengawas-row')) continue;
+
+                let cells = htmlRow.cells;
+                let cPointer = 1;
+
+                for(let c = 0; c < cells.length; c++) {
+                    while(skipMap[`${excelRowIdx},${cPointer}`]) cPointer++;
+
+                    let cell = cells[c];
+                    let eCell = ws.getCell(excelRowIdx, cPointer);
+                    let val = Array.from(cell.querySelectorAll('div')).map(d => d.innerText.trim()).filter(t=>t).join('\n') || cell.innerText.trim();
+
+                    if(!isNaN(val) && val !== "" && cPointer === 2 && r > 0) {
+                        eCell.value = Number(val);
+                        eCell.numFmt = '0';
+                    } else {
+                        eCell.value = val;
+                    }
+
+                    let classes = cell.className;
+                    cell.querySelectorAll('div').forEach(d => classes += " " + d.className);
+                    
+                    let st = null;
+                    for(let key in hexStyles) { if(classes.includes(key)) { st = hexStyles[key]; break; } }
+
+                    if(st) {
+                        eCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: st.f } };
+                        eCell.font = { color: { argb: st.c }, bold: st.b, size: 10, name: 'Arial' };
+                    } else if (classes.includes('font-bold')) {
+                        eCell.font = { bold: true, size: 10, name: 'Arial' };
+                    } else {
+                        eCell.font = { size: 10, name: 'Arial' };
+                    }
+
+                    eCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                    eCell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+
+                    let rs = cell.rowSpan || 1, cs = cell.colSpan || 1;
+                    let actualRowSpan = rs;
+                    if(skipPengawas && rs > 1) {
+                        actualRowSpan = 0;
+                        for(let i=0; i<rs; i++) {
+                            if(r+i < rows.length && !rows[r+i].classList.contains('pengawas-row')) actualRowSpan++;
+                        }
+                    }
+
+                    if(actualRowSpan > 1 || cs > 1) {
+                        ws.mergeCells(excelRowIdx, cPointer, excelRowIdx + actualRowSpan - 1, cPointer + cs - 1);
+                        for(let i=0; i<actualRowSpan; i++) {
+                            for(let j=0; j<cs; j++) skipMap[`${excelRowIdx+i},${cPointer+j}`] = true;
+                        }
+                    }
+                    cPointer += cs;
+                }
+                excelRowIdx++;
+            }
+            ws.columns.forEach((col, i) => col.width = i < 3 ? 15 : 25);
+        }
+
+        window.exportLevelJS = function(level, isStudent) {
+            const wb = new ExcelJS.Workbook();
+            const wsName = isStudent ? `Jadwal Siswa ${level}` : `Jadwal Pengawas ${level}`;
+            const ws = wb.addWorksheet(wsName);
+            processTableToExcel(ws, `table-${level}`, level, isStudent).then(() => {
+                const fileName = isStudent ? `Jadwal_Pelajaran_${level}.xlsx` : `Jadwal_Pengawas_${level}.xlsx`;
+                wb.xlsx.writeBuffer().then(buf => saveAs(new Blob([buf]), fileName));
+            });
+        };
+
+        window.exportAllExcelJS = function() {
+            const wb = new ExcelJS.Workbook();
+            let promises = [];
+            ['SD', 'SMP', 'SMA'].forEach(lvl => {
+                if(document.getElementById(`table-${lvl}`)) {
+                    const ws = wb.addWorksheet(`Jadwal ${lvl}`);
+                    promises.push(processTableToExcel(ws, `table-${lvl}`, lvl, false));
+                }
+            });
+            Promise.all(promises).then(() => {
+                wb.xlsx.writeBuffer().then(buf => saveAs(new Blob([buf]), `Jadwal_Lengkap.xlsx`));
+            });
+        };
+
+        window.printSubjectsOnly = function(target) {
+            document.body.classList.add('print-' + target.toLowerCase());
+            document.body.classList.add('print-subjects-only');
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('print-' + target.toLowerCase());
+                document.body.classList.remove('print-subjects-only');
+            }, 1000);
+        };
+
+        function populateDayFilters() {
+            const sels = document.querySelectorAll('.filter-hari');
+            sels.forEach(s => {
+                s.innerHTML = '<option value="">-- Pilih Hari --</option>';
+                availableDays.forEach(h => s.innerHTML += `<option value="${h}">${h}</option>`);
+            });
+        }
+
+        document.querySelectorAll('.filter-hari').forEach(s => {
+            s.addEventListener('change', (e) => {
+                const h = e.target.value;
+                const type = e.target.id.split('-')[0];
+                if(e.target.id === 'cek-personal-hari') { updatePersonalSchedule(); return; }
+                const sesiSelect = document.getElementById(`${type}-sesi`);
+                if(sesiSelect) {
+                    sesiSelect.innerHTML = '<option value="">-- Sesi --</option>';
+                    if(h && currentScheduleData[h]) {
+                        let sessions = currentScheduleData[h]['SD']?.sessions || currentScheduleData[h]['SMP']?.sessions || [];
+                        sessions.forEach(sec => {
+                            if(!sec.isBreak) sesiSelect.innerHTML += `<option value="${sec.jam}">Jam Ke-${sec.jam}</option>`;
+                        });
+                    }
+                }
+                if(type === 'cek') updateGuruKosongList();
+                if(type === 'rep') updateSubstituteDropdown();
+            });
+        });
+
+        document.getElementById('cek-sesi').addEventListener('change', updateGuruKosongList);
+        document.getElementById('rep-sesi').addEventListener('change', updateSubstituteDropdown);
+        document.getElementById('cek-personal-guru').addEventListener('change', updatePersonalSchedule);
+
+        function updateSubstituteDropdown() {
+            const h = document.getElementById('rep-hari').value, s = parseInt(document.getElementById('rep-sesi').value);
+            const drop = document.getElementById('rep-guru-pengganti');
+            if(!h || !s) { drop.innerHTML = '<option value="">-- Pilih Hari/Sesi --</option>'; return; }
+            let assigned = [];
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
+                    if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
+                }
+            });
+            
+            let dedicatedGurus = getActiveDedicatedGurus(); // Dapatkan guru SD 1-3
+            // Kecualikan guru yang tertugaskan permanen di SD 1-3 agar tidak muncul sebagai kandidat pengganti lintas kelas
+            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+            
+            drop.innerHTML = free.length ? '<option value="">-- Pilih Pengganti --</option>' + free.map(t => `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`).join('') : '<option value="">Kosong</option>';
+        }
+
+        function updatePersonalSchedule() {
+            const h = document.getElementById('cek-personal-hari').value, g = document.getElementById('cek-personal-guru').value;
+            const container = document.getElementById('list-jadwal-personal');
+            if(!h || !g) { container.innerHTML = '<li>Menunggu parameter...</li>'; return; }
+            let list = [];
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    currentScheduleData[h][lvl].sessions.forEach(sesi => {
+                        if(sesi.pengawas) {
+                            for(let r in sesi.pengawas) if(sesi.pengawas[r].includes(g)) list.push({j: sesi.jam, w: sesi.waktu, l: lvl, r: r, m: sesi.mapelUtama[r]});
+                        }
+                    });
+                }
+            });
+            container.innerHTML = list.length ? list.map(x => `<li class="p-2 border border-schoolGold/20 rounded">Jam Ke-${x.j}: ${x.l} - ${x.r} (${x.m})</li>`).join('') : '<li>Bebas Tugas (Free)</li>';
+        }
+
+        function updateGuruKosongList() {
+            const h = document.getElementById('cek-hari').value, s = parseInt(document.getElementById('cek-sesi').value);
+            const container = document.getElementById('list-guru-kosong');
+            if(!h || !s) { container.innerHTML = '<li>Menunggu parameter...</li>'; return; }
+            let assigned = [];
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
+                    if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
+                }
+            });
+            
+            let dedicatedGurus = getActiveDedicatedGurus(); // Dapatkan guru SD 1-3
+            // Coret guru SD 1-3 dari daftar 'Free' / Standby List
+            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+            
+            container.innerHTML = free.map(t => `<li class="text-green-400">✔ ${t.Nama_Guru} (${t.Jenjang_Diajar})</li>`).join('');
+        }
+
+        function updateRekapSesi() {
+            const container = document.getElementById('rekap-sesi-container');
+            let counts = {}; dummyTeachers.forEach(t => counts[t] = 0);
+            if (savedSetupData.ketua) delete counts[savedSetupData.ketua];
+
+            for(let h in currentScheduleData) for(let l in currentScheduleData[h]) if(currentScheduleData[h][l]) currentScheduleData[h][l].sessions.forEach(s => { if(s.pengawas) { for(let r in s.pengawas) s.pengawas[r].forEach(g => { if(counts[g] !== undefined) counts[g]++ }) } });
+            let sorted = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+            container.innerHTML = sorted.map(t => `<div class="p-2 border border-white/10 rounded flex justify-between"><span>${t}</span><span class="font-bold">${counts[t]}</span></div>`).join('');
+        }
+
+        document.getElementById('btn-replace').addEventListener('click', async () => {
+            const h = document.getElementById('rep-hari').value, s = parseInt(document.getElementById('rep-sesi').value);
+            const lvl = document.getElementById('rep-level').value, outT = document.getElementById('rep-guru-izin').value, inT = document.getElementById('rep-guru-pengganti').value;
+            const al = document.getElementById('rep-alert');
+            
+            if(!h || !s || !outT || !inT) {
+                al.innerText = "Lengkapi Data!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block";
+                setTimeout(() => al.classList.add('hidden'), 3000); return;
+            }
+
+            const sesiData = currentScheduleData[h]?.[lvl]?.sessions.find(x => x.jam === s);
+            let found = false;
+            if(sesiData && sesiData.pengawas) {
+                for(let r in sesiData.pengawas) {
+                    let idx = sesiData.pengawas[r].indexOf(outT);
+                    if(idx !== -1) { sesiData.pengawas[r][idx] = inT; found = true; }
+                }
+            }
+
+            if(found) {
+                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown(); 
+                
+                showToast("Menyimpan perubahan ke DB...", false);
+                try {
+                    let payload = {
+                        detailSesi: `Hari ${h}, Sesi ${s}, Tingkat ${lvl}`,
+                        guruKeluar: outT,
+                        guruMasuk: inT,
+                        newScheduleData: currentScheduleData
+                    };
+                    let res = await fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'saveReplacement', payload: payload })
+                    });
+                    let data = await res.json();
+                    if (data.status === 'success') {
+                        showToast("Perubahan berhasil disimpan ke Server!");
+                    }
+                } catch(e) { console.error(e); showToast("Gagal simpan ke server.", true); }
+
+                al.innerText = "Sukses!"; al.className = "mt-4 p-3 text-blue-300 bg-blue-900/50 block";
+            } else { 
+                al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block"; 
+            }
+            setTimeout(() => al.classList.add('hidden'), 3000);
+        });
+
+    </script>
+</body>
+</html>
