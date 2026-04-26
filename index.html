@@ -626,6 +626,33 @@
             // TAHAP 2: EKSTRAK & DISTRIBUSI MAPEL KE DALAM HARI (BIN PACKING)
             // -------------------------------------------------------------
             levels.forEach(lvl => {
+                
+                // --- AWAL LOGIKA ACAK SERAGAM PER JENJANG ---
+                // Kumpulkan semua mapel untuk jenjang ini agar pengacakannya seragam
+                let jenjangTmpls = [];
+                for(let i = lvl.start; i <= lvl.end; i++) {
+                    let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
+                    let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
+                    if(chk && chk.checked && ujiSelect.value !== "") {
+                        let jenis = ujiSelect.value;
+                        jenjangTmpls.push(...masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i)));
+                    }
+                }
+
+                // Buat Master Mapel Order (Rahasia) untuk Jenjang ini
+                let uniqueMapels = [...new Set(jenjangTmpls.map(t => t.Mata_Pelajaran))];
+                if (isRefresh) {
+                    shuffleArray(uniqueMapels); // Mengacak secara global per jenjang
+                } else {
+                    uniqueMapels.sort((a,b) => {
+                        let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
+                        let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
+                        if(exA !== exB) return exB - exA; 
+                        return a.localeCompare(b);
+                    });
+                }
+                // --- AKHIR LOGIKA ACAK SERAGAM ---
+
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
                     let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
@@ -641,21 +668,13 @@
                         });
 
                         for(let r in rombelMap) {
-                            let mapels = [...rombelMap[r]]; // copy
+                            let mapels = [...rombelMap[r]]; 
                             
-                            // Acak mapel jika tombol Refresh ditekan, jika tidak urutkan berdasarkan durasi (Exact di awal)
-                            if (isRefresh) {
-                                shuffleArray(mapels);
-                            } else {
-                                mapels.sort((a,b) => {
-                                    let exA = isExact(a) ? 1 : 0;
-                                    let exB = isExact(b) ? 1 : 0;
-                                    if(exA !== exB) return exB - exA; 
-                                    return (parseInt(b.Durasi_Menit) || 0) - (parseInt(a.Durasi_Menit) || 0);
-                                });
-                            }
+                            // Terapkan Master Mapel Order ke setiap Rombel
+                            mapels.sort((a,b) => {
+                                return uniqueMapels.indexOf(a.Mata_Pelajaran) - uniqueMapels.indexOf(b.Mata_Pelajaran);
+                            });
 
-                            // Siapkan keranjang kosong sejumlah hari yang tersedia (Setiap kelas wajib ada ujian tiap hari)
                             let chunks = Array.from({length: totalDays}, () => []);
                             
                             let isSD = lvl.id === 'SD';
@@ -669,14 +688,12 @@
                                 let temp = [...chunk, newMapel];
                                 let maxM = temp.length;
                                 
-                                // Cek jam selesai ujian (Maksimal jam 12.00)
                                 let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
                                 let totalExam = temp.reduce((s, m) => s + (parseInt(m.Durasi_Menit) || 90), 0);
-                                let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); // 3 mapel = 2x15m = 30m istirahat
+                                let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); 
                                 let endMins = startMins + totalExam + breakTime;
                                 if (endMins > 12 * 60) return false;
 
-                                // Exact wajib beda hari (SMP & SMA)
                                 if ((isSMP || isSMA) && isExact(newMapel) && chunk.some(x => isExact(x))) return false;
 
                                 if (isKelasBawah) {
@@ -693,7 +710,7 @@
                                         let d3 = chunks.filter(c => c.length === 3).length;
                                         if (d3 >= 2) return false;
                                         let count90Plus = temp.filter(x => parseInt(x.Durasi_Menit) >= 90).length;
-                                        if (count90Plus !== 1) return false; // Tepat 1 mapel >= 90
+                                        if (count90Plus > 1) return false; 
                                     }
                                 } else if (isSMA) {
                                     if (maxM > 3) return false;
@@ -710,9 +727,8 @@
                             for(let m of mapels) {
                                 let placed = false;
                                 
-                                // Prioritaskan hari dengan beban mapel paling sedikit untuk memastikan pemerataan tiap hari
+                                // Prioritas hari: Isi hari yang mapelnya paling dikit agar distribusi merata, tanpa diacak!
                                 let chunkIndices = chunks.map((c, idx) => idx);
-                                if (isRefresh) shuffleArray(chunkIndices); // Acak hari prioritas saat direfresh
                                 chunkIndices.sort((a, b) => chunks[a].length - chunks[b].length); 
 
                                 for(let idx of chunkIndices) {
@@ -723,7 +739,6 @@
                                     }
                                 }
 
-                                // Fallback 1: Jika gagal ditaruh karena aturan sangat ketat (misal exact bentrok), abaikan aturan tapi TETAP jaga max 12:00
                                 if (!placed) {
                                     for(let idx of chunkIndices) {
                                         let dayChunk = chunks[idx];
@@ -734,8 +749,8 @@
                                         let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
                                         
                                         if ((startMins + totalExam + breakTime) <= 12 * 60) {
-                                            if (isSD && maxM > 2) continue; // Batas absolut jenjang
-                                            if ((isSMP || isSMA) && maxM > 3) continue; // Batas absolut jenjang
+                                            if (isSD && maxM > 2) continue;
+                                            if ((isSMP || isSMA) && maxM > 3) continue;
                                             
                                             dayChunk.push(m);
                                             placed = true;
@@ -744,7 +759,6 @@
                                     }
                                 }
 
-                                // Fallback 2: Paksa taruh di hari paling kosong agar adil (Jaring Pengaman terakhir)
                                 if (!placed) {
                                     chunks[chunkIndices[0]].push(m);
                                 }
@@ -807,7 +821,6 @@
                     if(maxMapelInDay === 0) return;
 
                     let dailySessions = [];
-                    // Pakem Waktu Dzikir (15m jika >2 mapel, 50m jika <=2)
                     let dzikirDur = maxMapelInDay > 2 ? 15 : 50;
                     let currentTime = new Date(2000, 0, 1, 7, 0);
                     let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
@@ -822,7 +835,6 @@
                         isBreak: true
                     });
 
-                    // Sesi 1 selalu jam 08.00 jika mapel <= 2, atau lanjut 07.15 jika mapel > 2
                     currentTime = maxMapelInDay > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
 
                     for(let s = 0; s < maxMapelInDay; s++) {
@@ -846,13 +858,11 @@
                                 let jenjang = lvl.id;
                                 
                                 if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
-                                    // SD KLS 1-3
                                     let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
                                     let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
                                     pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
                                     names.forEach(n => assignedGlobal[hari][s+1].add(n));
                                 } else {
-                                    // KLS 4-12
                                     let availableForRoom = masterGurus.filter(g => {
                                         if(g.Nama_Guru === savedSetupData.ketua) return false;
                                         if(g.Jenjang_Diajar !== jenjang) return false; 
@@ -863,7 +873,7 @@
 
                                     let picked = "-TBA-";
                                     if(availableForRoom.length > 0) {
-                                        if (isRefresh) shuffleArray(availableForRoom); // Acak pengawas sebelum dicek beban kerjanya
+                                        if (isRefresh) shuffleArray(availableForRoom); 
                                         availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
                                         
                                         picked = availableForRoom[0].Nama_Guru;
@@ -887,8 +897,7 @@
 
                         currentTime = endTimeSesi;
 
-                        // Aturan Istirahat Dinamis (Revisi 4)
-                        if (s < maxMapelInDay - 1) { // Jika ada sesi berikutnya
+                        if (s < maxMapelInDay - 1) { 
                             let breakDur = maxMapelInDay === 2 ? 30 : 15; 
                             let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
                             
