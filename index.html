@@ -723,18 +723,18 @@
                 for (let r in rombelMap) allMapelObjs.push(...rombelMap[r]);
                 let uniqueMapels = [...new Set(allMapelObjs.map(t => t.Mata_Pelajaran))];
 
-                // Prioritaskan Mapel Exact di awal array agar aman, sisanya urut berdasarkan max durasi
-                uniqueMapels.sort((a,b) => {
-                    let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
-                    let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
-                    if(exA !== exB) return exB - exA;
+                // === LOGIKA KOCEK ARISAN MAPEL (DINAMIS TAPI SERAGAM) ===
+                // Pisahkan Exact dan Non-Exact agar mesin gampang mindahin Exact ke beda-beda hari
+                let exactMapels = uniqueMapels.filter(m => isExact({Mata_Pelajaran: m}));
+                let nonExactMapels = uniqueMapels.filter(m => !isExact({Mata_Pelajaran: m}));
 
-                    let durA = Math.max(...allMapelObjs.filter(x => x.Mata_Pelajaran === a).map(x => parseInt(x.Durasi_Menit)||0), 0);
-                    let durB = Math.max(...allMapelObjs.filter(x => x.Mata_Pelajaran === b).map(x => parseInt(x.Durasi_Menit)||0), 0);
-                    if (durA !== durB) return durB - durA;
+                // Acak urutan masing-masing grup biar tiap di-Generate hasil harinya beda
+                shuffleArray(exactMapels);
+                shuffleArray(nonExactMapels);
 
-                    return a.localeCompare(b);
-                });
+                // Gabungkan kembali (Exact dikerjakan duluan supaya prioritas cari hari beda)
+                uniqueMapels = [...exactMapels, ...nonExactMapels];
+                // ==========================================================
 
                 let rombelChunks = {};
                 for(let r in rombelMap) {
@@ -819,12 +819,14 @@
                     }
 
                     if (dayScores.length > 0) {
+                        shuffleArray(dayScores); // Suit hari biar lebih dinamis kalau ada hari yang sama-sama kosong
                         dayScores.sort((a,b) => a.score - b.score);
                         placedDay = dayScores[0].day;
                     }
 
                     // Fallback 1: Jika mentok, loloskan sedikit aturan tapi TETAP jaga batas 12:00
                     if (placedDay === -1) {
+                        let fallbackScores = [];
                         for(let d=0; d<totalDays; d++) {
                             let canFitJam12 = true;
                             let totalLoad = 0;
@@ -844,27 +846,37 @@
                                 if ((lvl.id === 'SMP' || lvl.id === 'SMA') && maxM > 3) { canFitJam12 = false; break; }
                             }
                             if (canFitJam12) {
-                                if (placedDay === -1 || totalLoad < dayScores.score) {
-                                    placedDay = d;
-                                    dayScores = { day: d, score: totalLoad };
-                                }
+                                fallbackScores.push({day: d, score: totalLoad});
                             }
+                        }
+                        
+                        if(fallbackScores.length > 0) {
+                            shuffleArray(fallbackScores);
+                            fallbackScores.sort((a,b) => a.score - b.score);
+                            placedDay = fallbackScores[0].day;
                         }
                     }
 
                     // Fallback 2: Kepepet banget
                     if (placedDay === -1) {
                         let minLoad = 999;
+                        let bestDays = [];
                         for(let d=0; d<totalDays; d++) {
                             let totalLoad = targetRombels.reduce((sum, tr) => sum + rombelChunks[tr.rombel][d].length, 0);
                             if (totalLoad < minLoad) {
                                 minLoad = totalLoad;
-                                placedDay = d;
+                                bestDays = [d];
+                            } else if (totalLoad === minLoad) {
+                                bestDays.push(d);
                             }
+                        }
+                        if(bestDays.length > 0) {
+                            shuffleArray(bestDays);
+                            placedDay = bestDays[0];
                         }
                     }
 
-                    // Pakukan mapel ini ke hari yang terpilih untuk SEMUA rombel yang memilikinya
+                    // Pakukan mapel ini ke hari yang terpilih untuk SEMUA rombel yang memilikinya secara kompak!
                     for (let tr of targetRombels) {
                         rombelChunks[tr.rombel][placedDay].push(tr.mapelObj);
                     }
