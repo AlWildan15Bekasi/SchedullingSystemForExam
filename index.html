@@ -257,7 +257,7 @@
         <!-- HEADER MODE PREVIEW -->
         <div class="preview-only mb-6 text-center border-b border-schoolGold/30 pb-4">
             <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Preview Jadwal Sementara</h2>
-            <p class="text-sm text-gray-400">Harap periksa susunan jadwal. Gunakan tombol 'Acak Ulang' di bawah jika ingin mencari kombinasi lain (Mapel & Pengawas).</p>
+            <p class="text-sm text-gray-400">Harap periksa susunan jadwal. Gunakan tombol 'Kembali ke Atur Ujian' jika ingin merubah Mapel.</p>
         </div>
 
         <!-- HEADER MODE ADMIN -->
@@ -277,9 +277,13 @@
 
         <!-- TOMBOL AKSI MODE PREVIEW (Refresh & Submit) -->
         <div id="preview-actions" class="preview-only mt-12 flex flex-col sm:flex-row justify-center gap-6 no-print">
+            <button id="btn-back-to-config" class="bg-gray-600 hover:bg-gray-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(75,85,99,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Kembali ke Atur Ujian
+            </button>
             <button id="btn-refresh" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                Acak Ulang (Refresh)
+                Acak Ulang Pengawas
             </button>
             <button id="btn-submit" class="bg-green-600 hover:bg-green-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(22,163,74,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
@@ -437,6 +441,7 @@
         document.getElementById('btn-back-landing-1').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
         document.getElementById('btn-back-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); });
         document.getElementById('btn-back-landing-admin').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
+        document.getElementById('btn-back-to-config').addEventListener('click', () => { hideAll(); secDashboard.classList.remove('hidden'); });
 
         function renderDashboardRow(containerId, start, end, prefix) {
             const container = document.getElementById(containerId);
@@ -513,8 +518,9 @@
             return array;
         }
 
+        // Generate Plan Jadwal Baru (Mapel & Pengawas)
         document.getElementById('btn-generate').addEventListener('click', () => {
-            buildScheduleState(false);
+            buildScheduleState();
             secResult.classList.remove('mode-admin');
             secResult.classList.add('mode-preview');
             renderAllMatrices();
@@ -522,10 +528,11 @@
             secResult.classList.remove('hidden');
         });
 
+        // Acak Ulang KHUSUS Pengawas Saja
         document.getElementById('btn-refresh').addEventListener('click', () => {
-            buildScheduleState(true);
+            reassignPengawas();
             renderAllMatrices();
-            showToast("Jadwal diacak ulang dengan formasi baru!");
+            showToast("Pengawas berhasil diacak ulang!");
         });
 
         document.getElementById('btn-submit').addEventListener('click', async () => {
@@ -587,9 +594,71 @@
         }
 
         // ==============================================================
-        // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL & ATURAN PAKEM KETAT
+        // LOGIKA: REASSIGN KHUSUS PENGAWAS (TANPA UBAH MAPEL)
         // ==============================================================
-        function buildScheduleState(isRefresh = false) {
+        function reassignPengawas() {
+            let workload = {};
+            masterGurus.forEach(g => workload[g.Nama_Guru] = 0);
+            let assignedGlobal = {}; 
+            let dedicatedSD13 = getActiveDedicatedGurus();
+
+            availableDays.forEach(hari => {
+                assignedGlobal[hari] = {};
+                ['SD', 'SMP', 'SMA'].forEach(lvl => {
+                    if(!currentScheduleData[hari] || !currentScheduleData[hari][lvl]) return;
+                    
+                    let data = currentScheduleData[hari][lvl];
+                    data.sessions.forEach(sesi => {
+                        if(sesi.isBreak) return;
+
+                        if(!assignedGlobal[hari][sesi.jam]) assignedGlobal[hari][sesi.jam] = new Set();
+                        let pengawasMap = {};
+
+                        data.rombels.forEach(r => {
+                            let isUjian = sesi.mapelUtama[r] && sesi.mapelUtama[r] !== "-";
+                            if(!isUjian) return;
+
+                            let tingkatMatch = r.match(/\d+/);
+                            let tingkat = tingkatMatch ? parseInt(tingkatMatch[0]) : 0;
+                            let jenjang = lvl;
+                            
+                            if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
+                                let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
+                                let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
+                                pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
+                                names.forEach(n => assignedGlobal[hari][sesi.jam].add(n));
+                            } else {
+                                let availableForRoom = masterGurus.filter(g => {
+                                    if(g.Nama_Guru === savedSetupData.ketua) return false;
+                                    if(g.Jenjang_Diajar !== jenjang) return false; 
+                                    if(dedicatedSD13.has(g.Nama_Guru)) return false; 
+                                    if(assignedGlobal[hari][sesi.jam].has(g.Nama_Guru)) return false; 
+                                    return true;
+                                });
+
+                                let picked = "-TBA-";
+                                if(availableForRoom.length > 0) {
+                                    shuffleArray(availableForRoom); // Acak murni sebelum urut beban kerja
+                                    availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
+                                    
+                                    picked = availableForRoom[0].Nama_Guru;
+                                    workload[picked]++; 
+                                    assignedGlobal[hari][sesi.jam].add(picked); 
+                                }
+                                pengawasMap[r] = [picked]; 
+                            }
+                        });
+                        sesi.pengawas = pengawasMap;
+                    });
+                });
+            });
+        }
+
+
+        // ==============================================================
+        // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL MAPEL BARU DARI AWAL
+        // ==============================================================
+        function buildScheduleState() {
             currentScheduleData = {}; 
             
             // -------------------------------------------------------------
@@ -628,7 +697,6 @@
             levels.forEach(lvl => {
                 
                 // --- AWAL LOGIKA ACAK SERAGAM PER JENJANG ---
-                // Kumpulkan semua mapel untuk jenjang ini agar pengacakannya seragam
                 let jenjangTmpls = [];
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
@@ -639,18 +707,16 @@
                     }
                 }
 
-                // Buat Master Mapel Order (Rahasia) untuk Jenjang ini
+                // Buat Master Mapel Order (Acak Baru Setiap Kali Generate)
                 let uniqueMapels = [...new Set(jenjangTmpls.map(t => t.Mata_Pelajaran))];
-                if (isRefresh) {
-                    shuffleArray(uniqueMapels); // Mengacak secara global per jenjang
-                } else {
-                    uniqueMapels.sort((a,b) => {
-                        let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
-                        let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
-                        if(exA !== exB) return exB - exA; 
-                        return a.localeCompare(b);
-                    });
-                }
+                shuffleArray(uniqueMapels); // Mengacak secara global per jenjang
+                
+                // Prioritaskan Mapel Exact di awal array agar lebih mudah masuk jadwal tanpa bentrok hari
+                uniqueMapels.sort((a,b) => {
+                    let exA = isExact({Mata_Pelajaran: a}) ? 1 : 0;
+                    let exB = isExact({Mata_Pelajaran: b}) ? 1 : 0;
+                    return exB - exA; 
+                });
                 // --- AKHIR LOGIKA ACAK SERAGAM ---
 
                 for(let i = lvl.start; i <= lvl.end; i++) {
@@ -727,8 +793,9 @@
                             for(let m of mapels) {
                                 let placed = false;
                                 
-                                // Prioritas hari: Isi hari yang mapelnya paling dikit agar distribusi merata, tanpa diacak!
+                                // Prioritas hari: Acak prioritas hari (untuk variasi saat Generate) lalu urutkan berdasarkan beban teringan
                                 let chunkIndices = chunks.map((c, idx) => idx);
+                                shuffleArray(chunkIndices); 
                                 chunkIndices.sort((a, b) => chunks[a].length - chunks[b].length); 
 
                                 for(let idx of chunkIndices) {
@@ -775,29 +842,9 @@
             });
 
             // -------------------------------------------------------------
-            // TAHAP 3: INISIALISASI WORKLOAD & ANTI-BENTROK
-            // -------------------------------------------------------------
-            let workload = {};
-            masterGurus.forEach(g => workload[g.Nama_Guru] = 0);
-            let assignedGlobal = {}; 
-
-            let dedicatedSD13 = new Set();
-            if(levelData['SD']) {
-                levelData['SD'].forEach(rd => {
-                    if(rd.tingkat >= 1 && rd.tingkat <= 3) {
-                        masterGurus.forEach(g => {
-                            if(g.Keterangan && g.Keterangan.includes(rd.rombel)) dedicatedSD13.add(g.Nama_Guru);
-                        });
-                    }
-                });
-            }
-
-            // -------------------------------------------------------------
-            // TAHAP 4: SUSUN WAKTU SESI & PLOTTING GURU PENGAWAS
+            // TAHAP 3: SUSUN SESI MAPEL TANPA PENGAWAS DULU
             // -------------------------------------------------------------
             availableDays.forEach((hari, hariIdx) => {
-                assignedGlobal[hari] = {};
-
                 levels.forEach(lvl => {
                     let rombelDataList = levelData[lvl.id];
                     if(rombelDataList.length === 0) return;
@@ -838,13 +885,11 @@
                     currentTime = maxMapelInDay > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
 
                     for(let s = 0; s < maxMapelInDay; s++) {
-                        if(!assignedGlobal[hari][s+1]) assignedGlobal[hari][s+1] = new Set();
-                        
                         let dur = sessionMaxDurations[s];
                         let endTimeSesi = new Date(currentTime.getTime() + dur * 60000);
 
                         let mapelSesiMap = {};
-                        let pengawasMap = {};
+                        let pengawasMap = {}; // Dikosongkan sementara untuk diisi fungsi reassignPengawas
 
                         allRombels.forEach(r => {
                             let rd = rombelDataList.find(x => x.rombel === r);
@@ -853,35 +898,6 @@
 
                             if(isUjian) {
                                 mapelSesiMap[r] = isUjian.Mata_Pelajaran;
-
-                                let tingkat = rd.tingkat;
-                                let jenjang = lvl.id;
-                                
-                                if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
-                                    let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
-                                    let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
-                                    pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
-                                    names.forEach(n => assignedGlobal[hari][s+1].add(n));
-                                } else {
-                                    let availableForRoom = masterGurus.filter(g => {
-                                        if(g.Nama_Guru === savedSetupData.ketua) return false;
-                                        if(g.Jenjang_Diajar !== jenjang) return false; 
-                                        if(dedicatedSD13.has(g.Nama_Guru)) return false; 
-                                        if(assignedGlobal[hari][s+1].has(g.Nama_Guru)) return false; 
-                                        return true;
-                                    });
-
-                                    let picked = "-TBA-";
-                                    if(availableForRoom.length > 0) {
-                                        if (isRefresh) shuffleArray(availableForRoom); 
-                                        availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
-                                        
-                                        picked = availableForRoom[0].Nama_Guru;
-                                        workload[picked]++; 
-                                        assignedGlobal[hari][s+1].add(picked); 
-                                    }
-                                    pengawasMap[r] = [picked]; 
-                                }
                             } else {
                                 mapelSesiMap[r] = "-"; 
                             }
@@ -891,7 +907,7 @@
                             jam: s + 1,
                             waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi),
                             mapelUtama: mapelSesiMap,
-                            pengawas: pengawasMap,
+                            pengawas: pengawasMap, // Akan diisi otomatis setelah ini
                             isBreak: false
                         });
 
@@ -913,6 +929,9 @@
                     };
                 });
             });
+
+            // TAHAP AKHIR: Tetapkan Pengawas
+            reassignPengawas();
         }
 
         // TAMPILKAN MATRIKS JADWAL
