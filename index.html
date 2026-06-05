@@ -101,7 +101,7 @@
         @media print {
             @page { size: A4 landscape; margin: 10mm; }
             body { background: white !important; color: black !important; }
-            .no-print, #landing-section, #setup-section, #dashboard-section, .control-panels-wrapper, #preview-actions { display: none !important; }
+            .no-print, #login-section, #landing-section, #setup-section, #dashboard-section, .control-panels-wrapper, #preview-actions, #editor-panel { display: none !important; }
             
             body.print-sd .level-container:not(.sd-container) { display: none !important; }
             body.print-smp .level-container:not(.smp-container) { display: none !important; }
@@ -120,6 +120,13 @@
         /* Mode Logic (Preview vs Admin) */
         .mode-preview .admin-only { display: none !important; }
         .mode-admin .preview-only { display: none !important; }
+        
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
+            z-index: 100; display: none; justify-content: center; align-items: center;
+        }
     </style>
 </head>
 <body class="antialiased flex flex-col relative overflow-x-hidden">
@@ -129,7 +136,7 @@
     <div class="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-schoolGold rounded-full blur-[150px] opacity-20 pointer-events-none z-[-1]"></div>
 
     <!-- UI Custom Toast (Notifikasi) -->
-    <div id="custom-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px]">
+    <div id="custom-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[200] transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px]">
         <div id="toast-bg" class="bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center">
             <span id="toast-icon" class="mr-3 text-2xl">🔔</span>
             <span id="toast-msg" class="font-bold tracking-wide">Pesan Notifikasi</span>
@@ -137,9 +144,28 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- BAGIAN 0: HALAMAN UTAMA (LANDING PAGE)     -->
+    <!-- BAGIAN 0: HALAMAN LOGIN (BARU)             -->
     <!-- ========================================== -->
-    <div id="landing-section" class="flex-grow flex items-center justify-center p-4 fade-in">
+    <div id="login-section" class="flex-grow flex items-center justify-center p-4 fade-in">
+        <div class="glass-panel rounded-2xl w-full max-w-md overflow-hidden shadow-neon border-t-4 border-schoolGold p-8 text-center">
+            <img src="https://thumbs2.imgbox.com/56/33/5BfaWatk_t.png" alt="Logo Al Wildan" class="mx-auto h-24 mb-4 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
+            <h1 class="text-2xl font-black text-schoolGold tracking-[0.2em] uppercase mb-2">Security Login</h1>
+            <p class="text-gray-400 text-xs mb-8">Access restricted to authorized scheduling personnel.</p>
+            
+            <form id="login-form" class="space-y-4">
+                <input type="text" placeholder="Username" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
+                <input type="password" placeholder="Password" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
+                <button type="submit" class="w-full bg-schoolGold hover:bg-neonGold text-schoolBlue font-black tracking-widest py-3 rounded-lg transition duration-300 shadow-neon uppercase mt-4">
+                    Authenticate &rarr;
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 0.5: HALAMAN UTAMA (LANDING PAGE)   -->
+    <!-- ========================================== -->
+    <div id="landing-section" class="hidden flex-grow items-center justify-center p-4 fade-in">
         <div class="text-center w-full max-w-4xl">
             <img src="https://thumbs2.imgbox.com/56/33/5BfaWatk_t.png" alt="Logo Al Wildan" class="mx-auto h-32 mb-6 object-contain drop-shadow-[0_0_25px_rgba(255,255,255,0.4)]">
             <h1 class="text-4xl md:text-5xl font-black text-schoolGold tracking-[0.2em] mb-4 uppercase">Al Wildan Islamic School</h1>
@@ -164,7 +190,7 @@
     <!-- ========================================== -->
     <!-- BAGIAN 1: PENGATURAN AWAL (FASE 1)         -->
     <!-- ========================================== -->
-    <div id="setup-section" class="hidden flex-grow flex items-center justify-center p-4 fade-in">
+    <div id="setup-section" class="hidden flex-grow items-center justify-center p-4 fade-in">
         <div class="glass-panel rounded-2xl w-full max-w-2xl overflow-hidden shadow-neon border-t-4 border-schoolGold relative">
             <button id="btn-back-landing-1" class="absolute top-4 left-4 text-gray-400 hover:text-white">&larr; Kembali</button>
             <div class="p-8 text-center relative border-b border-schoolGold/20 mt-4">
@@ -254,10 +280,16 @@
     <!-- Elemen ini dipakai bergantian oleh Mode Preview dan Mode Admin via class -->
     <div id="result-section" class="hidden flex-grow p-4 md:p-8 w-full max-w-[1400px] mx-auto fade-in mode-preview">
         
-        <!-- HEADER MODE PREVIEW -->
+        <!-- HEADER MODE PREVIEW & GLOBAL EDITOR -->
         <div class="preview-only mb-6 text-center border-b border-schoolGold/30 pb-4">
             <h2 class="text-3xl font-black text-schoolGold tracking-wider uppercase">Preview Jadwal Sementara</h2>
-            <p class="text-sm text-gray-400">Jadwal mata pelajaran dikunci seragam per jenjang. Gunakan tombol 'Acak Ulang' hanya untuk merubah formasi Pengawas.</p>
+            <p class="text-sm text-gray-400 mb-6">Jadwal mata pelajaran dikunci seragam per jenjang. Gunakan tombol 'Acak Ulang' hanya untuk merubah formasi Pengawas.</p>
+            
+            <div id="editor-panel" class="flex flex-wrap justify-center gap-4 mt-2">
+                <button onclick="openEditorHari()" class="bg-red-900/80 hover:bg-red-800 border border-red-500 text-red-100 font-bold py-2 px-6 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.5)] flex items-center transition text-sm">
+                    📅 Editor Tanggal (Libur)
+                </button>
+            </div>
         </div>
 
         <!-- HEADER MODE ADMIN -->
@@ -266,7 +298,7 @@
                 &larr; Keluar Panel
             </button>
             <div class="flex gap-2">
-                <button id="btn-export-all" class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow flex items-center transition text-sm uppercase">
+                <button id="btn-export-all" onclick="exportAllExcelJS()" class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow flex items-center transition text-sm uppercase">
                     Ekspor Semua Ke Excel
                 </button>
             </div>
@@ -276,7 +308,7 @@
         <div id="matrix-containers" class="space-y-12"></div>
 
         <!-- TOMBOL AKSI MODE PREVIEW (Refresh & Submit) -->
-        <div id="preview-actions" class="preview-only mt-12 flex flex-col sm:flex-row justify-center gap-6 no-print">
+        <div id="preview-actions" class="preview-only mt-12 flex flex-col sm:flex-row justify-center gap-6 no-print border-t border-white/10 pt-8">
             <button id="btn-back-to-config" class="bg-gray-600 hover:bg-gray-500 text-white font-black py-4 px-8 rounded-full shadow-[0_0_15px_rgba(75,85,99,0.5)] transition transform hover:scale-105 text-lg tracking-widest uppercase flex items-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 Kembali ke Atur Ujian
@@ -341,21 +373,182 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MODAL EDITORS (PREVIEW PHASE)              -->
+    <!-- ========================================== -->
+    
+    <!-- MODAL EDITOR TANGGAL LIBUR -->
+    <div id="modal-hari" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-md relative">
+            <h2 class="text-xl font-bold text-red-400 mb-4 border-b border-red-400/30 pb-2">Editor Tanggal (Hari Libur)</h2>
+            <p class="text-xs text-gray-400 mb-4">Hapus centang untuk menetapkan hari libur. Jadwal akan otomatis mundur.</p>
+            <div id="editor-hari-list" class="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2"></div>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('modal-hari')" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 text-sm">Batal</button>
+                <button onclick="saveEditorHari()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 text-sm font-bold shadow-[0_0_10px_rgba(220,38,38,0.5)]">Terapkan & Susun Ulang</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MENU EDITOR KELAS (PILIHAN 4 TOMBOL) -->
+    <div id="modal-editor-menu" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
+            <h2 class="text-xl font-bold text-blue-400 mb-4 border-b border-blue-400/30 pb-2">Dashboard Editor Mapel</h2>
+            <p class="text-xs text-gray-400 mb-6">Pilih jenjang dan kelas spesifik, lalu pilih aksi modifikasi jadwal yang ingin dilakukan.</p>
+            
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Pilih Jenjang</label>
+                    <select id="menu-mapel-lvl" class="w-full p-2 rounded futuristic-input text-sm" onchange="populateMenuKelasDropdown()">
+                        <option value="">-</option>
+                        <option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA">SMA</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Pilih Kelas</label>
+                    <select id="menu-mapel-kelas" class="w-full p-2 rounded futuristic-input text-sm" onchange="enableMenuButtons()">
+                        <option value="">-</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tombol Aksi (Awalnya Disabled) -->
+            <div class="grid grid-cols-2 gap-4">
+                <button id="btn-menu-tukar" disabled onclick="openSubEditor('tukar')" class="px-4 py-3 bg-blue-900/50 text-blue-300 rounded border border-blue-500 hover:bg-blue-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed">🔄 Tukar Sesi</button>
+                <button id="btn-menu-hapus" disabled onclick="openSubEditor('hapus')" class="px-4 py-3 bg-red-900/50 text-red-300 rounded border border-red-500 hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed">🗑️ Hapus Sesi</button>
+                <button id="btn-menu-tambah" disabled onclick="openSubEditor('tambah')" class="px-4 py-3 bg-green-900/50 text-green-300 rounded border border-green-500 hover:bg-green-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed col-span-2">➕ Tambah/Pindah Mapel</button>
+            </div>
+
+            <div class="flex justify-end mt-6 pt-4 border-t border-white/10">
+                <button onclick="closeModal('modal-editor-menu')" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 text-sm">Tutup Editor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUB-MODAL 1: TUKAR MAPEL -->
+    <div id="modal-mapel-tukar" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
+            <h2 class="text-xl font-bold text-blue-400 mb-4 border-b border-blue-400/30 pb-2">Tukar Sesi Mapel</h2>
+            <p class="text-xs text-gray-400 mb-4">Kelas: <span id="label-tukar-kelas" class="font-bold text-white"></span>. Tukar posisi mapel, sistem otomatis atur durasi.</p>
+            
+            <div class="space-y-4 mb-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-3 border border-blue-500/30 bg-blue-900/20 rounded">
+                        <label class="block text-xs font-bold text-blue-300 mb-1">Awal (Sumber)</label>
+                        <select id="edit-tukar-src-hari" class="w-full p-2 mb-2 rounded futuristic-input text-sm" onchange="updateSubSesi('tukar-src')"><option value="">Hari</option></select>
+                        <select id="edit-tukar-src-sesi" class="w-full p-2 rounded futuristic-input text-sm"><option value="">Sesi Mapel</option></select>
+                    </div>
+                    <div class="p-3 border border-blue-500/30 bg-blue-900/20 rounded">
+                        <label class="block text-xs font-bold text-blue-300 mb-1">Akhir (Target)</label>
+                        <select id="edit-tukar-tgt-hari" class="w-full p-2 mb-2 rounded futuristic-input text-sm" onchange="updateSubSesi('tukar-tgt')"><option value="">Hari</option></select>
+                        <select id="edit-tukar-tgt-sesi" class="w-full p-2 rounded futuristic-input text-sm"><option value="">Sesi Mapel</option></select>
+                    </div>
+                </div>
+                <div id="edit-tukar-alert" class="text-xs text-red-400 font-bold hidden"></div>
+            </div>
+
+            <div class="flex justify-between gap-3">
+                <button onclick="backToMenu('modal-mapel-tukar')" class="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 text-sm">&larr; Kembali</button>
+                <button onclick="executeTukarMapel()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm font-bold shadow-[0_0_10px_rgba(59,130,246,0.5)]">Eksekusi Tukar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUB-MODAL 2: HAPUS SESI -->
+    <div id="modal-mapel-hapus" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-sm relative">
+            <h2 class="text-xl font-bold text-red-400 mb-4 border-b border-red-400/30 pb-2">Hapus Sesi Mapel</h2>
+            <p class="text-xs text-gray-400 mb-4">Kelas: <span id="label-hapus-kelas" class="font-bold text-white"></span>. Sesi yang dihapus akan merapatkan jadwal hari tersebut.</p>
+            
+            <div class="p-4 border border-red-500/30 bg-red-900/20 rounded mb-6">
+                <label class="block text-xs font-bold text-red-300 mb-1">Pilih Hari</label>
+                <select id="edit-hapus-hari" class="w-full p-2 mb-3 rounded futuristic-input text-sm" onchange="updateSubSesi('hapus')"><option value="">Hari</option></select>
+                <label class="block text-xs font-bold text-red-300 mb-1">Pilih Sesi yang Ingin Dihapus</label>
+                <select id="edit-hapus-sesi" class="w-full p-2 rounded futuristic-input text-sm"><option value="">Sesi Mapel</option></select>
+            </div>
+            <div id="edit-hapus-alert" class="text-xs text-red-400 font-bold hidden mb-4"></div>
+
+            <div class="flex justify-between gap-3">
+                <button onclick="backToMenu('modal-mapel-hapus')" class="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 text-sm">&larr; Kembali</button>
+                <button onclick="executeHapusSesi()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 text-sm font-bold shadow-[0_0_10px_rgba(220,38,38,0.5)]">Hapus Sesi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUB-MODAL 3: TAMBAH / PINDAH SESI -->
+    <div id="modal-mapel-tambah" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
+            <h2 class="text-xl font-bold text-green-400 mb-4 border-b border-green-400/30 pb-2">Tambah / Pindah Mapel</h2>
+            <p class="text-xs text-gray-400 mb-4">Kelas: <span id="label-tambah-kelas" class="font-bold text-white"></span>. Pilih Mapel, lalu tentukan akan diselipkan ke Hari dan Sesi apa.</p>
+            
+            <div class="space-y-4 mb-6">
+                <div class="p-3 border border-schoolGold/30 bg-black/40 rounded">
+                    <label class="block text-xs font-bold text-schoolGold mb-1">Pilih Mapel yang Akan Dipindah</label>
+                    <select id="edit-tambah-mapel" class="w-full p-2 rounded futuristic-input text-sm border-schoolGold"><option value="">-- Pilih Mapel --</option></select>
+                    <p class="text-[10px] text-gray-500 mt-1 italic">*Mapel ini akan otomatis dicabut dari jadwal awalnya.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-3 border border-green-500/30 bg-green-900/20 rounded col-span-2">
+                        <label class="block text-xs font-bold text-green-300 mb-1">Pindah Ke Hari</label>
+                        <select id="edit-tambah-tgt-hari" class="w-full p-2 mb-2 rounded futuristic-input text-sm" onchange="updateSubSesi('tambah-tgt')"><option value="">Hari</option></select>
+                        <label class="block text-xs font-bold text-green-300 mb-1">Pindah Ke Sesi Target</label>
+                        <select id="edit-tambah-tgt-sesi" class="w-full p-2 rounded futuristic-input text-sm border-green-400"><option value="">Sesi Target</option></select>
+                    </div>
+                </div>
+                <div id="edit-tambah-alert" class="text-xs text-red-400 font-bold hidden"></div>
+            </div>
+
+            <div class="flex justify-between gap-3">
+                <button onclick="backToMenu('modal-mapel-tambah')" class="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 text-sm">&larr; Kembali</button>
+                <button onclick="executeTambahMapel()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 text-sm font-bold shadow-[0_0_10px_rgba(22,163,74,0.5)]">Pindah Mapel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITOR GANTI PENGAWAS -->
+    <div id="modal-pengawas" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
+            <h2 class="text-xl font-bold text-purple-400 mb-4 border-b border-purple-400/30 pb-2">Editor Pengawas Manual</h2>
+            <p class="text-xs text-gray-400 mb-4">Ganti atau tambah pengawas spesifik per rombel. Deteksi bentrok tetap aktif.</p>
+            
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <!-- Hidden input untuk nyimpen level dari tabel yg diklik -->
+                <div class="col-span-2 hidden">
+                    <input type="hidden" id="edit-pgw-lvl">
+                </div>
+                <div><label class="block text-xs font-bold text-gray-400 mb-1">Hari</label><select id="edit-pgw-hari" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateEditorPgwSesi()"></select></div>
+                <div><label class="block text-xs font-bold text-gray-400 mb-1">Sesi</label><select id="edit-pgw-sesi" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateEditorPgwRombel()"></select></div>
+                
+                <div class="col-span-2"><label class="block text-xs font-bold text-gray-400 mb-1">Rombel Kelas</label><select id="edit-pgw-rombel" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateEditorPgwOut()"></select></div>
+                
+                <div><label class="block text-xs font-bold text-gray-400 mb-1">Pengawas Keluar</label><select id="edit-pgw-out" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateEditorPgwIn()"></select></div>
+                <div><label class="block text-xs font-bold text-neonGold mb-1">Pengawas Masuk (Standby)</label><select id="edit-pgw-in" class="w-full p-2 rounded futuristic-input text-sm border-neonGold"></select></div>
+            </div>
+            <div id="edit-pgw-alert" class="text-xs text-red-400 font-bold hidden mb-4"></div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('modal-pengawas')" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 text-sm">Batal</button>
+                <button onclick="saveEditorPengawas()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 text-sm font-bold shadow-[0_0_10px_rgba(168,85,247,0.5)]">Eksekusi Pengawas</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Script Logika Javascript -->
     <script>
         // Setup API Backend Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjOGDb8-NdCzVFyouZgEWwOMuiut1xf47KJ3-YKZTL1chKneet-9WVis3x3WwiI-Vy/exec';
 
         // Variabel Data
-        let dummyTeachers = []; // Hanya untuk simpan list nama di dropdown
-        let masterGurus = [];   // Simpan objek guru utuh (beserta Keterangan & Jenjang)
+        let dummyTeachers = []; 
+        let masterGurus = [];   
         let masterTemplates = [];
 
         let currentScheduleData = {}; 
         let availableDays = []; 
         let savedSetupData = {}; 
+        let excludedDates = []; 
 
-        // Fungsi menampilkan notifikasi
         function showToast(msg, isError = false) {
             const t = document.getElementById('custom-toast');
             document.getElementById('toast-msg').innerText = msg;
@@ -366,12 +559,18 @@
                 : 'bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center';
             
             t.classList.remove('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
-            setTimeout(() => {
-                t.classList.add('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
-            }, 3000);
+            setTimeout(() => { t.classList.add('opacity-0', 'translate-y-[-20px]', 'pointer-events-none'); }, 3000);
         }
 
-        // Fetch data awal dari Google Apps Script
+        // FAKING LOGIN
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('landing-section').classList.remove('hidden');
+            document.getElementById('landing-section').classList.add('flex');
+            showToast("Login Berhasil! Selamat Datang.");
+        });
+
         async function loadBackendData() {
             showToast("Mengambil data dari database...", false);
             try {
@@ -385,9 +584,9 @@
                     }
                     if (data.data.templates && data.data.templates.length > 0) {
                         masterTemplates = data.data.templates;
+                        populateDashboardFromTemplates();
                     }
                     populateTeacherDropdowns();
-                    populateJenisUjianDropdowns();
                     showToast("Data berhasil dimuat!");
                 }
             } catch (e) {
@@ -398,27 +597,54 @@
         
         function populateTeacherDropdowns() {
             document.querySelectorAll('.teacher-dropdown').forEach(select => {
-                if(select.id === 'rep-guru-pengganti') return; 
+                if(select.id.includes('pengganti') || select.id.includes('edit-pgw-in')) return; 
                 select.innerHTML = `<option value="">-- Pilih Guru --</option>`;
                 dummyTeachers.forEach(t => select.innerHTML += `<option value="${t}">${t}</option>`);
             });
         }
 
-        // Ekstrak Jenis Ujian dari Template dan Tampilkan di Dropdown
-        function populateJenisUjianDropdowns() {
-            let jenisSet = new Set();
+        // FITUR BARU: DASHBOARD DINAMIS
+        function populateDashboardFromTemplates() {
+            let sdClasses = new Set();
+            let smpClasses = new Set();
+            let smaClasses = new Set();
+            let allUjian = new Set();
+
             masterTemplates.forEach(t => {
-                if (t.Jenis_Ujian) jenisSet.add(t.Jenis_Ujian);
+                if(!t.Tingkat_Kelas || !t.Jenis_Ujian) return;
+                allUjian.add(t.Jenis_Ujian);
+                let tk = parseInt(t.Tingkat_Kelas);
+                if(tk >= 1 && tk <= 6) sdClasses.add(tk);
+                else if(tk >= 7 && tk <= 9) smpClasses.add(tk);
+                else if(tk >= 10 && tk <= 12) smaClasses.add(tk);
             });
-            
-            let optionsHTML = '<option value="">-- Non-Aktif --</option>';
-            jenisSet.forEach(j => {
-                optionsHTML += `<option value="${j}">${j}</option>`;
-            });
-            
-            document.querySelectorAll('[id^="uji-"]').forEach(select => {
-                select.innerHTML = optionsHTML;
-            });
+
+            function renderDynamic(containerId, classSet, prefix) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                let sorted = Array.from(classSet).sort((a,b)=>a-b);
+                if(sorted.length === 0) {
+                    container.innerHTML = '<p class="text-sm text-gray-400">Belum ada data dari database.</p>';
+                    return;
+                }
+                sorted.forEach(i => {
+                    let optionsHtml = '<option value="">-- Non-Aktif --</option>';
+                    allUjian.forEach(j => { optionsHtml += `<option value="${j}">${j}</option>`; });
+                    
+                    container.innerHTML += `
+                    <div class="flex items-center gap-3 bg-black/30 p-2 rounded border border-white/10 hover:border-schoolGold/50 transition">
+                        <input type="checkbox" id="chk-${prefix}-${i}" value="${i}" class="cyber-checkbox" checked>
+                        <label for="chk-${prefix}-${i}" class="font-bold text-sm w-16 text-gray-200">Kls ${i}</label>
+                        <select id="uji-${prefix}-${i}" class="flex-grow px-2 py-1 text-xs rounded futuristic-input">
+                            ${optionsHtml}
+                        </select>
+                    </div>`;
+                });
+            }
+
+            renderDynamic('sd-container', sdClasses, 'sd');
+            renderDynamic('smp-container', smpClasses, 'smp');
+            renderDynamic('sma-container', smaClasses, 'sma');
         }
 
         window.onload = () => {
@@ -431,34 +657,19 @@
         const secResult = document.getElementById('result-section');
 
         function hideAll() {
+            document.getElementById('login-section').classList.add('hidden');
             secLanding.classList.add('hidden');
+            secLanding.classList.remove('flex');
             secSetup.classList.add('hidden');
             secDashboard.classList.add('hidden');
             secResult.classList.add('hidden');
         }
 
-        document.getElementById('btn-menu-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); });
-        document.getElementById('btn-back-landing-1').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
-        document.getElementById('btn-back-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); });
-        document.getElementById('btn-back-landing-admin').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); });
+        document.getElementById('btn-menu-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); secSetup.classList.add('flex'); });
+        document.getElementById('btn-back-landing-1').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); secLanding.classList.add('flex'); });
+        document.getElementById('btn-back-setup').addEventListener('click', () => { hideAll(); secSetup.classList.remove('hidden'); secSetup.classList.add('flex'); });
+        document.getElementById('btn-back-landing-admin').addEventListener('click', () => { hideAll(); secLanding.classList.remove('hidden'); secLanding.classList.add('flex'); });
         document.getElementById('btn-back-to-config').addEventListener('click', () => { hideAll(); secDashboard.classList.remove('hidden'); });
-
-        function renderDashboardRow(containerId, start, end, prefix) {
-            const container = document.getElementById(containerId);
-            for(let i=start; i<=end; i++) {
-                container.innerHTML += `
-                <div class="flex items-center gap-3 bg-black/30 p-2 rounded border border-white/10 hover:border-schoolGold/50 transition">
-                    <input type="checkbox" id="chk-${prefix}-${i}" value="${i}" class="cyber-checkbox" checked>
-                    <label for="chk-${prefix}-${i}" class="font-bold text-sm w-16 text-gray-200">Kls ${i}</label>
-                    <select id="uji-${prefix}-${i}" class="flex-grow px-2 py-1 text-xs rounded futuristic-input">
-                        <option value="">-- Sedang Memuat --</option>
-                    </select>
-                </div>`;
-            }
-        }
-        renderDashboardRow('sd-container', 1, 6, 'sd');
-        renderDashboardRow('smp-container', 7, 9, 'smp');
-        renderDashboardRow('sma-container', 10, 12, 'sma');
 
         document.getElementById('setup-form').addEventListener('submit', (e) => {
             e.preventDefault(); 
@@ -466,6 +677,7 @@
             savedSetupData.ketua = document.getElementById('ketua-pelaksana').value;
             savedSetupData.tglMulai = document.getElementById('tgl-mulai').value;
             savedSetupData.tglSelesai = document.getElementById('tgl-selesai').value;
+            excludedDates = []; 
             hideAll(); 
             secDashboard.classList.remove('hidden');
         });
@@ -500,14 +712,12 @@
             }
         });
 
-        // Format Date ke Jam WIB
         function formatTime(dateObj) {
             let h = String(dateObj.getHours()).padStart(2, '0');
             let m = String(dateObj.getMinutes()).padStart(2, '0');
             return `${h}.${m} WIB`;
         }
 
-        // Fungsi Acak Array
         function shuffleArray(array) {
             let curId = array.length;
             while (0 !== curId) {
@@ -518,9 +728,8 @@
             return array;
         }
 
-        // Generate Plan Jadwal Baru (Mapel & Pengawas)
         document.getElementById('btn-generate').addEventListener('click', () => {
-            buildScheduleState();
+            buildScheduleState(false);
             secResult.classList.remove('mode-admin');
             secResult.classList.add('mode-preview');
             renderAllMatrices();
@@ -538,29 +747,16 @@
         document.getElementById('btn-submit').addEventListener('click', async () => {
             showToast("Menyimpan jadwal ke DB...", false);
             try {
-                let payload = {
-                    tahunAjaran: savedSetupData.thn,
-                    scheduleData: currentScheduleData
-                };
-                let res = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'saveSchedule', payload: payload })
-                });
+                let payload = { tahunAjaran: savedSetupData.thn, scheduleData: currentScheduleData };
+                let res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'saveSchedule', payload: payload }) });
                 let data = await res.json();
                 if (data.status === 'success') {
                     showToast("Jadwal berhasil disimpan secara permanen!");
-                    hideAll();
-                    secLanding.classList.remove('hidden');
-                } else {
-                    showToast("Error: " + data.message, true);
-                }
-            } catch(e) {
-                console.error(e);
-                showToast("Gagal koneksi ke DB.", true);
-            }
+                    hideAll(); secLanding.classList.remove('hidden'); secLanding.classList.add('flex');
+                } else { showToast("Error: " + data.message, true); }
+            } catch(e) { console.error(e); showToast("Gagal koneksi ke DB.", true); }
         });
 
-        // Cek Mapel Exact
         function isExact(mapelObj) {
             if(!mapelObj || !mapelObj.Mata_Pelajaran) return false;
             let nama = mapelObj.Mata_Pelajaran.toLowerCase();
@@ -569,32 +765,21 @@
                    nama.includes('biologi') || nama.includes('exact');
         }
 
-        // Ambil Daftar Guru SD 1-3 yang Eksklusif
         function getActiveDedicatedGurus() {
             let dedicated = new Set();
             if(!currentScheduleData) return dedicated;
-            
             let sdRombels = [];
             for(let h in currentScheduleData) {
                 if(currentScheduleData[h] && currentScheduleData[h]['SD'] && currentScheduleData[h]['SD'].rombels) {
-                    currentScheduleData[h]['SD'].rombels.forEach(r => {
-                        if(r.match(/^[123]\s/)) sdRombels.push(r);
-                    });
+                    currentScheduleData[h]['SD'].rombels.forEach(r => { if(r.match(/^[123]\s/)) sdRombels.push(r); });
                 }
             }
-            
-            masterGurus.forEach(g => {
-                if(g.Keterangan) {
-                    sdRombels.forEach(r => {
-                        if(g.Keterangan.includes(r)) dedicated.add(g.Nama_Guru);
-                    });
-                }
-            });
+            masterGurus.forEach(g => { if(g.Keterangan) { sdRombels.forEach(r => { if(g.Keterangan.includes(r)) dedicated.add(g.Nama_Guru); }); } });
             return dedicated;
         }
 
         // ==============================================================
-        // LOGIKA: REASSIGN KHUSUS PENGAWAS (TANPA UBAH MAPEL)
+        // LOGIKA: REASSIGN KHUSUS PENGAWAS 
         // ==============================================================
         function reassignPengawas() {
             let workload = {};
@@ -606,11 +791,9 @@
                 assignedGlobal[hari] = {};
                 ['SD', 'SMP', 'SMA'].forEach(lvl => {
                     if(!currentScheduleData[hari] || !currentScheduleData[hari][lvl]) return;
-                    
                     let data = currentScheduleData[hari][lvl];
                     data.sessions.forEach(sesi => {
                         if(sesi.isBreak) return;
-
                         if(!assignedGlobal[hari][sesi.jam]) assignedGlobal[hari][sesi.jam] = new Set();
                         let pengawasMap = {};
 
@@ -624,9 +807,29 @@
                             
                             if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
                                 let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
+                                dedicatedGurusRoom = dedicatedGurusRoom.filter(g => g.Nama_Guru !== savedSetupData.ketua);
+                                
                                 let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
-                                pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
-                                names.forEach(n => assignedGlobal[hari][sesi.jam].add(n));
+                                
+                                // BACKUP JIKA KETUA ADALAH GURU KELAS SD
+                                if(names.length === 0) {
+                                    let backupGuru = masterGurus.filter(g => {
+                                        return g.Nama_Guru !== savedSetupData.ketua && 
+                                               g.Jenjang_Diajar === 'SD' && 
+                                               !dedicatedSD13.has(g.Nama_Guru) && 
+                                               !assignedGlobal[hari][sesi.jam].has(g.Nama_Guru);
+                                    });
+                                    if(backupGuru.length > 0) {
+                                        backupGuru.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
+                                        names = [backupGuru[0].Nama_Guru];
+                                        workload[backupGuru[0].Nama_Guru]++;
+                                    } else {
+                                        names = ["-TBA-"];
+                                    }
+                                }
+
+                                pengawasMap[r] = names;
+                                names.forEach(n => { if(n !== "-TBA-") assignedGlobal[hari][sesi.jam].add(n); });
                             } else {
                                 let availableForRoom = masterGurus.filter(g => {
                                     if(g.Nama_Guru === savedSetupData.ketua) return false;
@@ -638,9 +841,8 @@
 
                                 let picked = "-TBA-";
                                 if(availableForRoom.length > 0) {
-                                    shuffleArray(availableForRoom); // Acak murni sebelum urut beban kerja
+                                    shuffleArray(availableForRoom); 
                                     availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
-                                    
                                     picked = availableForRoom[0].Nama_Guru;
                                     workload[picked]++; 
                                     assignedGlobal[hari][sesi.jam].add(picked); 
@@ -654,24 +856,19 @@
             });
         }
 
-
         // ==============================================================
         // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL MAPEL BARU DARI AWAL
-        // Menggunakan Sistem Komando Berbasis Mapel (Mapel-Centric Scheduling)
         // ==============================================================
-        function buildScheduleState() {
+        function buildScheduleState(isRefresh = false) {
             currentScheduleData = {}; 
-            
-            // -------------------------------------------------------------
-            // TAHAP 1: INISIALISASI DAFTAR HARI
-            // -------------------------------------------------------------
             const startDate = new Date(savedSetupData.tglMulai || new Date());
             const endDate = new Date(savedSetupData.tglSelesai || new Date());
             
             availableDays = [];
             let currDateGen = new Date(startDate);
             while(currDateGen <= endDate) {
-                if(currDateGen.getDay() !== 0 && currDateGen.getDay() !== 6) { // Skip Sabtu Minggu
+                let dStrRaw = currDateGen.toISOString().split('T')[0];
+                if(currDateGen.getDay() !== 0 && currDateGen.getDay() !== 6 && !excludedDates.includes(dStrRaw)) { 
                     let dStr = currDateGen.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
                     availableDays.push(dStr);
                     currentScheduleData[dStr] = { SD: null, SMP: null, SMA: null };
@@ -679,27 +876,56 @@
                 currDateGen.setDate(currDateGen.getDate() + 1);
             }
             let totalDays = availableDays.length;
-            if(totalDays === 0) {
-                showToast("Rentang tanggal tidak valid (atau hanya hari libur).", true);
-                return;
-            }
+            if(totalDays === 0) { showToast("Rentang tanggal tidak valid.", true); return; }
 
             let levelData = { 'SD': [], 'SMP': [], 'SMA': [] };
 
-            const levels = [
-                { id: 'SD', prefix: 'sd', start: 1, end: 6 },
-                { id: 'SMP', prefix: 'smp', start: 7, end: 9 },
-                { id: 'SMA', prefix: 'sma', start: 10, end: 12 }
-            ];
+            const levels = [ { id: 'SD', prefix: 'sd', start: 1, end: 6 }, { id: 'SMP', prefix: 'smp', start: 7, end: 9 }, { id: 'SMA', prefix: 'sma', start: 10, end: 12 } ];
 
-            // -------------------------------------------------------------
-            // TAHAP 2: MAPEL-CENTRIC SCHEDULING (JAMIN SEJAJAR SE-JENJANG)
-            // -------------------------------------------------------------
             levels.forEach(lvl => {
-                
-                let rombelMap = {}; // { '10 DI': [mapelObj1, mapelObj2], ... }
-                let rombelTingkat = {}; // { '10 DI': 10 }
+                let jenjangTmpls = [];
+                for(let i = lvl.start; i <= lvl.end; i++) {
+                    let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
+                    let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
+                    if(chk && chk.checked && ujiSelect.value !== "") {
+                        let jenis = ujiSelect.value;
+                        jenjangTmpls.push(...masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i)));
+                    }
+                }
 
+                // EKSTRAKSI GRUP MAPEL (FUZZY MATCH)
+                function getFuzzyMapelGroup(mapelName) {
+                    if (!mapelName || mapelName === "-") return "-";
+                    let name = mapelName.toLowerCase();
+                    if (name.includes('biologi')) return 'grup_biologi';
+                    if (name.includes('fisika')) return 'grup_fisika';
+                    if (name.includes('kimia')) return 'grup_kimia';
+                    if (name.includes('ekonomi')) return 'grup_ekonomi';
+                    if (name.includes('sosiologi')) return 'grup_sosiologi';
+                    if (name.includes('geografi')) return 'grup_geografi';
+                    if (name.includes('math') || name.includes('matematika')) return 'grup_math';
+                    if (name.includes('science') || name.includes('ipa')) return 'grup_science';
+                    if (name.includes('qur') || name.includes('quran')) return 'grup_quran';
+                    if (name.includes('akidah')) return 'grup_akidah';
+                    if (name.includes('fikih') || name.includes('fiqih')) return 'grup_fikih';
+                    return name; 
+                }
+
+                let uniqueMapelGroups = [...new Set(jenjangTmpls.map(t => getFuzzyMapelGroup(t.Mata_Pelajaran)))];
+                
+                // MENGACAK URUTAN GRUP MAPEL (DINAMIS)
+                shuffleArray(uniqueMapelGroups);
+                
+                uniqueMapelGroups.sort((a,b) => {
+                    let exA = ['grup_math', 'grup_science', 'grup_fisika', 'grup_kimia'].includes(a) ? 1 : 0;
+                    let exB = ['grup_math', 'grup_science', 'grup_fisika', 'grup_kimia'].includes(b) ? 1 : 0;
+                    if(exA !== exB) return exB - exA; 
+                    return 0; 
+                });
+
+                let rombelMap = {};
+                let rombelTingkat = {};
+                
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
                     let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
@@ -707,56 +933,31 @@
                         let jenis = ujiSelect.value;
                         let tmpls = masterTemplates.filter(t => t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(i));
                         tmpls.forEach(t => {
-                            if(!rombelMap[t.Kelas_Rombel]) {
-                                rombelMap[t.Kelas_Rombel] = [];
-                                rombelTingkat[t.Kelas_Rombel] = i;
-                            }
+                            if(!rombelMap[t.Kelas_Rombel]) { rombelMap[t.Kelas_Rombel] = []; rombelTingkat[t.Kelas_Rombel] = parseInt(i); }
                             rombelMap[t.Kelas_Rombel].push(t);
                         });
                     }
                 }
 
-                if (Object.keys(rombelMap).length === 0) return;
-
-                // Ambil semua mapel unik di jenjang ini
-                let allMapelObjs = [];
-                for (let r in rombelMap) allMapelObjs.push(...rombelMap[r]);
-                let uniqueMapels = [...new Set(allMapelObjs.map(t => t.Mata_Pelajaran))];
-
-                // === LOGIKA KOCEK ARISAN MAPEL (DINAMIS TAPI SERAGAM) ===
-                // Pisahkan Exact dan Non-Exact agar mesin gampang mindahin Exact ke beda-beda hari
-                let exactMapels = uniqueMapels.filter(m => isExact({Mata_Pelajaran: m}));
-                let nonExactMapels = uniqueMapels.filter(m => !isExact({Mata_Pelajaran: m}));
-
-                // Acak urutan masing-masing grup biar tiap di-Generate hasil harinya beda
-                shuffleArray(exactMapels);
-                shuffleArray(nonExactMapels);
-
-                // Gabungkan kembali (Exact dikerjakan duluan supaya prioritas cari hari beda)
-                uniqueMapels = [...exactMapels, ...nonExactMapels];
-                // ==========================================================
-
                 let rombelChunks = {};
-                for(let r in rombelMap) {
-                    rombelChunks[r] = Array.from({length: totalDays}, () => []);
-                }
+                for(let r in rombelMap) { rombelChunks[r] = Array.from({length: totalDays}, () => []); }
 
-                // Fungsi validasi super ketat
                 function isValidChunk(allChunksForRombel, targetDayIndex, newMapel, tingkat) {
+                    if(!allChunksForRombel || !allChunksForRombel[targetDayIndex]) return false;
                     let chunk = allChunksForRombel[targetDayIndex];
                     let temp = [...chunk, newMapel];
                     let maxM = temp.length;
 
                     let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
                     let totalExam = temp.reduce((s, m) => s + (parseInt(m.Durasi_Menit) || 90), 0);
-                    let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
+                    let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); 
                     let endMins = startMins + totalExam + breakTime;
                     if (endMins > 12 * 60) return false;
 
                     let isSD = lvl.id === 'SD';
                     let isSMP = lvl.id === 'SMP';
                     let isSMA = lvl.id === 'SMA';
-                    let isKelasBawah = isSD && (tingkat >= 1 && tingkat <= 2);
+                    let isKelasBawah = isSD && (tingkat >= 1 && tingkat <= 2); 
                     let isKelasAtasSD = isSD && (tingkat >= 3 && tingkat <= 6);
 
                     if ((isSMP || isSMA) && isExact(newMapel) && chunk.some(x => isExact(x))) return false;
@@ -775,7 +976,7 @@
                             let d3 = allChunksForRombel.filter(c => c.length === 3).length;
                             if (d3 >= 2) return false;
                             let count90Plus = temp.filter(x => parseInt(x.Durasi_Menit) >= 90).length;
-                            if (count90Plus > 1) return false;
+                            if (count90Plus > 1) return false; 
                         }
                     } else if (isSMA) {
                         if (maxM > 3) return false;
@@ -789,48 +990,51 @@
                     return true;
                 }
 
-                // LOGIKA KOMANDO: Ambil Mapel, pakukan di hari yang sama untuk SELURUH rombel di jenjang ini
-                for (let mName of uniqueMapels) {
+                // PLOTTING BERDASARKAN GRUP (Menjamin Kelurusan Lintas Kelas)
+                for (let groupName of uniqueMapelGroups) {
                     let targetRombels = [];
                     for (let r in rombelMap) {
-                        let mObj = rombelMap[r].find(x => x.Mata_Pelajaran === mName);
+                        let mObj = rombelMap[r].find(x => getFuzzyMapelGroup(x.Mata_Pelajaran) === groupName);
                         if (mObj) targetRombels.push({ rombel: r, mapelObj: mObj, tingkat: rombelTingkat[r] });
                     }
 
                     if (targetRombels.length === 0) continue;
 
                     let placedDay = -1;
-                    let dayScores = [];
+                    
+                    // Acak urutan pengecekan hari biar mapel ga selalu numpuk di hari pertama
+                    let dayIndices = Array.from({length: totalDays}, (_, i) => i);
+                    shuffleArray(dayIndices);
+                    
+                    let bestScores = [];
 
-                    for(let d=0; d<totalDays; d++) {
+                    for(let d of dayIndices) {
                         let isValidForAll = true;
                         let totalLoad = 0;
                         for (let tr of targetRombels) {
+                            if(!rombelChunks[tr.rombel] || !rombelChunks[tr.rombel][d]) { isValidForAll = false; break; }
                             let chunk = rombelChunks[tr.rombel][d];
                             totalLoad += chunk.length;
                             if (!isValidChunk(rombelChunks[tr.rombel], d, tr.mapelObj, tr.tingkat)) {
-                                isValidForAll = false;
-                                break;
+                                isValidForAll = false; break;
                             }
                         }
-                        if (isValidForAll) {
-                            dayScores.push({ day: d, score: totalLoad });
-                        }
+                        if (isValidForAll) bestScores.push({ day: d, score: totalLoad });
                     }
 
-                    if (dayScores.length > 0) {
-                        shuffleArray(dayScores); // Suit hari biar lebih dinamis kalau ada hari yang sama-sama kosong
-                        dayScores.sort((a,b) => a.score - b.score);
-                        placedDay = dayScores[0].day;
+                    if (bestScores.length > 0) {
+                        bestScores.sort((a,b) => a.score - b.score);
+                        placedDay = bestScores[0].day;
                     }
 
-                    // Fallback 1: Jika mentok, loloskan sedikit aturan tapi TETAP jaga batas 12:00
+                    // Fallback 1: Jika mentok aturan ekstrim
                     if (placedDay === -1) {
                         let fallbackScores = [];
-                        for(let d=0; d<totalDays; d++) {
+                        for(let d of dayIndices) {
                             let canFitJam12 = true;
                             let totalLoad = 0;
                             for (let tr of targetRombels) {
+                                if(!rombelChunks[tr.rombel] || !rombelChunks[tr.rombel][d]) { canFitJam12 = false; break; }
                                 let chunk = rombelChunks[tr.rombel][d];
                                 totalLoad += chunk.length;
                                 let temp = [...chunk, tr.mapelObj];
@@ -838,20 +1042,14 @@
                                 let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
                                 let totalExam = temp.reduce((s, x) => s + (parseInt(x.Durasi_Menit) || 90), 0);
                                 let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
-
-                                if (startMins + totalExam + breakTime > 12 * 60) {
-                                    canFitJam12 = false; break;
-                                }
+                                
+                                if ((startMins + totalExam + breakTime) > 12 * 60) { canFitJam12 = false; break; }
                                 if (lvl.id === 'SD' && maxM > 2) { canFitJam12 = false; break; }
                                 if ((lvl.id === 'SMP' || lvl.id === 'SMA') && maxM > 3) { canFitJam12 = false; break; }
                             }
-                            if (canFitJam12) {
-                                fallbackScores.push({day: d, score: totalLoad});
-                            }
+                            if (canFitJam12) fallbackScores.push({day: d, score: totalLoad});
                         }
-                        
                         if(fallbackScores.length > 0) {
-                            shuffleArray(fallbackScores);
                             fallbackScores.sort((a,b) => a.score - b.score);
                             placedDay = fallbackScores[0].day;
                         }
@@ -860,41 +1058,33 @@
                     // Fallback 2: Kepepet banget
                     if (placedDay === -1) {
                         let minLoad = 999;
-                        let bestDays = [];
-                        for(let d=0; d<totalDays; d++) {
-                            let totalLoad = targetRombels.reduce((sum, tr) => sum + rombelChunks[tr.rombel][d].length, 0);
-                            if (totalLoad < minLoad) {
-                                minLoad = totalLoad;
-                                bestDays = [d];
-                            } else if (totalLoad === minLoad) {
-                                bestDays.push(d);
+                        for(let d of dayIndices) {
+                            let totalLoad = 0;
+                            for (let tr of targetRombels) {
+                                if(rombelChunks[tr.rombel] && rombelChunks[tr.rombel][d]) {
+                                    totalLoad += rombelChunks[tr.rombel][d].length;
+                                }
                             }
-                        }
-                        if(bestDays.length > 0) {
-                            shuffleArray(bestDays);
-                            placedDay = bestDays[0];
+                            if (totalLoad < minLoad) { minLoad = totalLoad; placedDay = d; }
                         }
                     }
 
-                    // Pakukan mapel ini ke hari yang terpilih untuk SEMUA rombel yang memilikinya secara kompak!
-                    for (let tr of targetRombels) {
-                        rombelChunks[tr.rombel][placedDay].push(tr.mapelObj);
+                    // Pakukan mapel ini ke hari yang terpilih
+                    if(placedDay !== -1) {
+                        for (let tr of targetRombels) {
+                            if(rombelChunks[tr.rombel] && rombelChunks[tr.rombel][placedDay]) {
+                                rombelChunks[tr.rombel][placedDay].push(tr.mapelObj);
+                            }
+                        }
                     }
                 }
 
-                // Masukkan hasil ke levelData
                 for(let r in rombelMap) {
-                    levelData[lvl.id].push({
-                        rombel: r,
-                        tingkat: rombelTingkat[r],
-                        chunks: rombelChunks[r]
-                    });
+                    levelData[lvl.id].push({ rombel: r, tingkat: rombelTingkat[r], chunks: rombelChunks[r] });
                 }
             });
 
-            // -------------------------------------------------------------
             // TAHAP 3: SUSUN SESI MAPEL (TANPA PENGAWAS DULU)
-            // -------------------------------------------------------------
             availableDays.forEach((hari, hariIdx) => {
                 levels.forEach(lvl => {
                     let rombelDataList = levelData[lvl.id];
@@ -926,12 +1116,7 @@
                     let dzikirMap = {};
                     allRombels.forEach(r => dzikirMap[r] = maxMapelInDay > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
 
-                    dailySessions.push({
-                        jam: '-',
-                        waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir),
-                        mapelUtama: dzikirMap,
-                        isBreak: true
-                    });
+                    dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
 
                     currentTime = maxMapelInDay > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
 
@@ -954,35 +1139,462 @@
                             }
                         });
 
-                        dailySessions.push({
-                            jam: s + 1,
-                            waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi),
-                            mapelUtama: mapelSesiMap,
-                            pengawas: pengawasMap, 
-                            isBreak: false
-                        });
-
+                        dailySessions.push({ jam: s + 1, waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi), mapelUtama: mapelSesiMap, pengawas: pengawasMap, isBreak: false });
                         currentTime = endTimeSesi;
 
                         if (s < maxMapelInDay - 1) { 
                             let breakDur = maxMapelInDay === 2 ? 30 : 15; 
                             let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
-                            
                             let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
                             dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
                             currentTime = breakEnd;
                         }
                     }
-
-                    currentScheduleData[hari][lvl.id] = {
-                        rombels: allRombels,
-                        sessions: dailySessions
-                    };
+                    currentScheduleData[hari][lvl.id] = { rombels: allRombels, sessions: dailySessions };
                 });
             });
 
-            // TAHAP AKHIR: Tetapkan Pengawas
             reassignPengawas();
+        }
+
+        // FUNGSI HITUNG ULANG JAM UNTUK EDITOR MAPEL
+        function recalculateTimesAndBreaks(lvl) {
+            availableDays.forEach(hari => {
+                if(!currentScheduleData[hari] || !currentScheduleData[hari][lvl]) return;
+                
+                let data = currentScheduleData[hari][lvl];
+                data.sessions = data.sessions.filter(s => !s.isBreak);
+                let numMapel = data.sessions.length;
+                if(numMapel === 0) return;
+
+                let sessionMaxDurations = [];
+                data.sessions.forEach((s, sIdx) => {
+                    let maxD = 0;
+                    data.rombels.forEach(r => {
+                        let mName = s.mapelUtama && s.mapelUtama[r] ? s.mapelUtama[r] : "-";
+                        if(mName && mName !== "-") {
+                            let selectEl = document.getElementById(`uji-${lvl.toLowerCase()}-${r.match(/\d+/)[0]}`);
+                            let jenis = selectEl ? selectEl.value : null;
+                            let tmpl = masterTemplates.find(t => t.Mata_Pelajaran === mName && t.Jenis_Ujian === jenis);
+                            let dur = tmpl ? parseInt(tmpl.Durasi_Menit) || 90 : 90;
+                            if(dur > maxD) maxD = dur;
+                        }
+                    });
+                    sessionMaxDurations.push(maxD);
+                });
+
+                let newSessions = [];
+                let dzikirDur = numMapel > 2 ? 15 : 50;
+                let currentTime = new Date(2000, 0, 1, 7, 0);
+                let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
+                
+                let dzikirMap = {};
+                data.rombels.forEach(r => dzikirMap[r] = numMapel > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
+
+                newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
+                currentTime = numMapel > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
+
+                data.sessions.forEach((s, idx) => {
+                    let dur = sessionMaxDurations[idx] || 90;
+                    let endTimeSesi = new Date(currentTime.getTime() + dur * 60000);
+                    s.waktu = formatTime(currentTime) + ' - ' + formatTime(endTimeSesi);
+                    s.jam = idx + 1;
+                    newSessions.push(s);
+                    currentTime = endTimeSesi;
+
+                    if (idx < numMapel - 1) { 
+                        let breakDur = numMapel === 2 ? 30 : 15; 
+                        let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
+                        let breakMap = {}; data.rombels.forEach(r => breakMap[r] = "Istirahat");
+                        newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
+                        currentTime = breakEnd;
+                    }
+                });
+                currentScheduleData[hari][lvl].sessions = newSessions;
+            });
+        }
+
+
+        // ==========================================
+        // FITUR MODAL EDITORS PREVIEW
+        // ==========================================
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        // 1. EDITOR TANGGAL LIBUR
+        function openEditorHari() {
+            const list = document.getElementById('editor-hari-list');
+            list.innerHTML = '';
+            const startDate = new Date(document.getElementById('tgl-mulai').value || new Date());
+            const endDate = new Date(document.getElementById('tgl-selesai').value || new Date());
+            
+            let currDate = new Date(startDate);
+            while(currDate <= endDate) {
+                if(currDate.getDay() !== 0 && currDate.getDay() !== 6) {
+                    let dRaw = currDate.toISOString().split('T')[0];
+                    let dStr = currDate.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+                    let isChecked = !excludedDates.includes(dRaw) ? 'checked' : '';
+                    list.innerHTML += `
+                        <div class="flex items-center justify-between bg-black/30 p-2 rounded border border-white/10">
+                            <span class="text-sm font-bold text-gray-200">${dStr}</span>
+                            <input type="checkbox" value="${dRaw}" class="cyber-checkbox toggle-hari" ${isChecked}>
+                        </div>`;
+                }
+                currDate.setDate(currDate.getDate() + 1);
+            }
+            openModal('modal-hari');
+        }
+
+        function saveEditorHari() {
+            excludedDates = [];
+            document.querySelectorAll('.toggle-hari').forEach(cb => {
+                if(!cb.checked) excludedDates.push(cb.value);
+            });
+            closeModal('modal-hari');
+            buildScheduleState(false);
+            renderAllMatrices();
+            showToast("Jadwal disesuaikan dengan hari libur baru.");
+        }
+
+        // 2. DASHBOARD MENU EDITOR (TUKAR, HAPUS, TAMBAH)
+        window.openEditorMapelMenu = function(lvl) {
+            document.getElementById('menu-mapel-lvl').value = lvl;
+            populateMenuKelasDropdown();
+            openModal('modal-editor-menu');
+        }
+
+        window.populateMenuKelasDropdown = function() {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasDrop = document.getElementById('menu-mapel-kelas');
+            kelasDrop.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+            
+            let checkboxes = document.querySelectorAll(`input[id^="chk-${lvl ? lvl.toLowerCase() : ''}-"]`);
+            if(checkboxes.length > 0) {
+                checkboxes.forEach(chk => {
+                    if(chk.checked) kelasDrop.innerHTML += `<option value="${chk.value}">Kelas ${chk.value}</option>`;
+                });
+            }
+            enableMenuButtons();
+        }
+
+        window.enableMenuButtons = function() {
+            const kelasVal = document.getElementById('menu-mapel-kelas').value;
+            const state = kelasVal === "";
+            document.getElementById('btn-menu-tukar').disabled = state;
+            document.getElementById('btn-menu-hapus').disabled = state;
+            document.getElementById('btn-menu-tambah').disabled = state;
+        }
+
+        window.openSubEditor = function(type) {
+            closeModal('modal-editor-menu');
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasVal = document.getElementById('menu-mapel-kelas').value;
+            
+            let htmlHari = '<option value="">Pilih Hari</option>';
+            availableDays.forEach(h => { if(currentScheduleData[h] && currentScheduleData[h][lvl]) htmlHari += `<option value="${h}">${h}</option>`; });
+
+            if(type === 'tukar') {
+                document.getElementById('label-tukar-kelas').innerText = `Kelas ${kelasVal} (${lvl})`;
+                document.getElementById('edit-tukar-src-hari').innerHTML = htmlHari;
+                document.getElementById('edit-tukar-tgt-hari').innerHTML = htmlHari;
+                document.getElementById('edit-tukar-src-sesi').innerHTML = '<option value="">Sesi Mapel</option>';
+                document.getElementById('edit-tukar-tgt-sesi').innerHTML = '<option value="">Sesi Mapel</option>';
+                openModal('modal-mapel-tukar');
+            } 
+            else if(type === 'hapus') {
+                document.getElementById('label-hapus-kelas').innerText = `Kelas ${kelasVal} (${lvl})`;
+                document.getElementById('edit-hapus-hari').innerHTML = htmlHari;
+                document.getElementById('edit-hapus-sesi').innerHTML = '<option value="">Sesi Mapel</option>';
+                openModal('modal-mapel-hapus');
+            }
+            else if(type === 'tambah') {
+                document.getElementById('label-tambah-kelas').innerText = `Kelas ${kelasVal} (${lvl})`;
+                document.getElementById('edit-tambah-tgt-hari').innerHTML = htmlHari;
+                document.getElementById('edit-tambah-tgt-sesi').innerHTML = '<option value="">Sesi Target</option>';
+                populateMapelSource();
+                openModal('modal-mapel-tambah');
+            }
+        }
+
+        window.backToMenu = function(currentId) { 
+            closeModal(currentId); 
+            openModal('modal-editor-menu'); 
+        }
+
+        window.updateSubSesi = function(prefix) {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const hari = document.getElementById(`edit-${prefix}-hari`).value;
+            const sesi = document.getElementById(`edit-${prefix}-sesi`);
+            sesi.innerHTML = '<option value="">Sesi Mapel</option>';
+            
+            if(hari && currentScheduleData[hari] && currentScheduleData[hari][lvl]) {
+                let maxS = 0;
+                currentScheduleData[hari][lvl].sessions.forEach(s => { if(!s.isBreak && s.jam > maxS) maxS = s.jam; });
+                for(let i=1; i<=maxS; i++) sesi.innerHTML += `<option value="${i}">Sesi ${i}</option>`;
+                
+                if(prefix === 'tambah-tgt') sesi.innerHTML += `<option value="NEW" class="text-neonGold font-bold">+ Buat Sesi Baru</option>`;
+            }
+        }
+
+        window.populateMapelSource = function() {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasNum = document.getElementById('menu-mapel-kelas').value;
+            const mapelSel = document.getElementById('edit-tambah-mapel');
+            mapelSel.innerHTML = '<option value="">-- Pilih Mapel --</option>';
+
+            availableDays.forEach(h => {
+                if(currentScheduleData[h] && currentScheduleData[h][lvl]) {
+                    currentScheduleData[h][lvl].sessions.forEach(s => {
+                        if(!s.isBreak && s.mapelUtama) {
+                            let targetRombels = currentScheduleData[h][lvl].rombels.filter(r => r.match(/\d+/)[0] === kelasNum);
+                            if(targetRombels.length > 0 && s.mapelUtama[targetRombels[0]] && s.mapelUtama[targetRombels[0]] !== "-") {
+                                let mapelName = s.mapelUtama[targetRombels[0]];
+                                let valString = `${h}|${s.jam}|${mapelName}`;
+                                mapelSel.innerHTML += `<option value="${valString}">${mapelName} (Dari ${h}, Sesi ${s.jam})</option>`;
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // AKSI 1: TUKAR MAPEL
+        function executeTukarMapel() {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasNum = document.getElementById('menu-mapel-kelas').value;
+            const sHari = document.getElementById('edit-tukar-src-hari').value;
+            const sJam = parseInt(document.getElementById('edit-tukar-src-sesi').value);
+            const tHari = document.getElementById('edit-tukar-tgt-hari').value;
+            const tJam = parseInt(document.getElementById('edit-tukar-tgt-sesi').value);
+            const alert = document.getElementById('edit-tukar-alert');
+
+            if(!lvl || !kelasNum || !sHari || !sJam || !tHari || !tJam) { alert.innerText = "Lengkapi form!"; alert.classList.remove('hidden'); return; }
+
+            let sSesiObj = currentScheduleData[sHari][lvl].sessions.find(x => !x.isBreak && x.jam === sJam);
+            let tSesiObj = currentScheduleData[tHari][lvl].sessions.find(x => !x.isBreak && x.jam === tJam);
+            let targetRombels = currentScheduleData[sHari][lvl].rombels.filter(r => r.match(/\d+/)[0] === kelasNum);
+
+            targetRombels.forEach(r => {
+                if(sSesiObj.mapelUtama && tSesiObj.mapelUtama) {
+                    let tempMapel = sSesiObj.mapelUtama[r];
+                    sSesiObj.mapelUtama[r] = tSesiObj.mapelUtama[r];
+                    tSesiObj.mapelUtama[r] = tempMapel;
+                }
+            });
+
+            recalculateTimesAndBreaks(lvl); reassignPengawas(); renderAllMatrices();
+            closeModal('modal-mapel-tukar'); showToast(`Mapel Kelas ${kelasNum} berhasil ditukar!`);
+        }
+
+        // AKSI 2: HAPUS SESI
+        function executeHapusSesi() {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasNum = document.getElementById('menu-mapel-kelas').value;
+            const hari = document.getElementById('edit-hapus-hari').value;
+            const jam = parseInt(document.getElementById('edit-hapus-sesi').value);
+            const alert = document.getElementById('edit-hapus-alert');
+
+            if(!lvl || !kelasNum || !hari || !jam) { alert.innerText = "Lengkapi form!"; alert.classList.remove('hidden'); return; }
+
+            let targetRombels = currentScheduleData[hari][lvl].rombels.filter(r => r.match(/\d+/)[0] === kelasNum);
+            let sesiObj = currentScheduleData[hari][lvl].sessions.find(x => !x.isBreak && x.jam === jam);
+            
+            targetRombels.forEach(r => {
+                if(sesiObj && sesiObj.mapelUtama) {
+                    sesiObj.mapelUtama[r] = "-";
+                    if(sesiObj.pengawas && sesiObj.pengawas[r]) delete sesiObj.pengawas[r];
+                }
+            });
+
+            // Cleanup
+            let data = currentScheduleData[hari][lvl];
+            let activeSessions = data.sessions.filter(s => !s.isBreak);
+            let keptSessions = [];
+            let currentJam = 1;
+            activeSessions.forEach(s => {
+                let hasMapel = false;
+                for(let r of data.rombels) { if (s.mapelUtama && s.mapelUtama[r] && s.mapelUtama[r] !== "-") hasMapel = true; }
+                if (hasMapel) { s.jam = currentJam++; keptSessions.push(s); }
+            });
+            data.sessions = keptSessions;
+
+            recalculateTimesAndBreaks(lvl); reassignPengawas(); renderAllMatrices();
+            closeModal('modal-mapel-hapus'); showToast(`Sesi Kelas ${kelasNum} dihapus.`);
+        }
+
+        // AKSI 3: TAMBAH / PINDAH MAPEL
+        function executeTambahMapel() {
+            const lvl = document.getElementById('menu-mapel-lvl').value;
+            const kelasNum = document.getElementById('menu-mapel-kelas').value;
+            const mapelData = document.getElementById('edit-tambah-mapel').value; 
+            const tHari = document.getElementById('edit-tambah-tgt-hari').value;
+            const tJamStr = document.getElementById('edit-tambah-tgt-sesi').value;
+            const alert = document.getElementById('edit-tambah-alert');
+
+            if(!lvl || !kelasNum || !mapelData || !tHari || !tJamStr) { alert.innerText = "Lengkapi form!"; alert.classList.remove('hidden'); return; }
+
+            let [sHari, sJamStr, namaMapel] = mapelData.split('|');
+            let sJam = parseInt(sJamStr);
+            let tJam = tJamStr === 'NEW' ? 'NEW' : parseInt(tJamStr);
+            let targetRombels = currentScheduleData[sHari][lvl].rombels.filter(r => r.match(/\d+/)[0] === kelasNum);
+
+            // Cabut dari sumber
+            let sSesiObj = currentScheduleData[sHari][lvl].sessions.find(x => !x.isBreak && x.jam === sJam);
+            targetRombels.forEach(r => { if(sSesiObj.mapelUtama) sSesiObj.mapelUtama[r] = "-"; });
+
+            // Taruh di target
+            let dataTgt = currentScheduleData[tHari][lvl];
+            let tSesiObj;
+
+            if (tJam === 'NEW') {
+                let maxS = 0;
+                dataTgt.sessions.forEach(s => { if(!s.isBreak && s.jam > maxS) maxS = s.jam; });
+                let newJam = maxS + 1;
+                tSesiObj = { jam: newJam, mapelUtama: {}, pengawas: {}, isBreak: false };
+                dataTgt.rombels.forEach(r => tSesiObj.mapelUtama[r] = "-");
+                dataTgt.sessions.push(tSesiObj);
+                tJam = newJam; 
+            } else {
+                tSesiObj = dataTgt.sessions.find(x => !x.isBreak && x.jam === tJam);
+            }
+
+            targetRombels.forEach(r => { if(tSesiObj.mapelUtama) tSesiObj.mapelUtama[r] = namaMapel; });
+
+            // Cleanup sumber
+            let dataSrc = currentScheduleData[sHari][lvl];
+            let activeSessions = dataSrc.sessions.filter(s => !s.isBreak);
+            let keptSessions = [];
+            let currentJam = 1;
+            activeSessions.forEach(s => {
+                let hasMapel = false;
+                for(let r of dataSrc.rombels) { if (s.mapelUtama && s.mapelUtama[r] && s.mapelUtama[r] !== "-") hasMapel = true; }
+                if (hasMapel) { s.jam = currentJam++; keptSessions.push(s); }
+            });
+            dataSrc.sessions = keptSessions;
+
+            recalculateTimesAndBreaks(lvl); reassignPengawas(); renderAllMatrices();
+            closeModal('modal-mapel-tambah'); showToast(`Mapel dipindah ke Hari ${tHari}!`);
+        }
+
+        // 4. EDITOR GANTI PENGAWAS MANUAL
+        window.openEditorPengawas = function(lvl) {
+            document.getElementById('edit-pgw-lvl').value = lvl;
+            const selHari = document.getElementById('edit-pgw-hari');
+            selHari.innerHTML = '<option value="">Pilih Hari</option>';
+            availableDays.forEach(h => selHari.innerHTML += `<option value="${h}">${h}</option>`);
+            
+            document.getElementById('edit-pgw-sesi').innerHTML = '<option value="">-</option>';
+            document.getElementById('edit-pgw-rombel').innerHTML = '<option value="">-</option>';
+            document.getElementById('edit-pgw-out').innerHTML = '<option value="">-</option>';
+            document.getElementById('edit-pgw-in').innerHTML = '<option value="">-</option>';
+            
+            document.getElementById('edit-pgw-alert').classList.add('hidden');
+            openModal('modal-pengawas');
+        }
+
+        window.updateEditorPgwSesi = function() {
+            const h = document.getElementById('edit-pgw-hari').value;
+            const l = document.getElementById('edit-pgw-lvl').value;
+            const sesi = document.getElementById('edit-pgw-sesi');
+            sesi.innerHTML = '<option value="">Pilih Sesi</option>';
+            if(!h || !l) return;
+            
+            let maxS = 0;
+            if(currentScheduleData[h] && currentScheduleData[h][l]) {
+                currentScheduleData[h][l].sessions.forEach(s => { if(!s.isBreak && s.jam > maxS) maxS = s.jam; });
+            }
+            for(let i=1; i<=maxS; i++) sesi.innerHTML += `<option value="${i}">Sesi ${i}</option>`;
+        }
+
+        window.updateEditorPgwRombel = function() {
+            const h = document.getElementById('edit-pgw-hari').value;
+            const s = parseInt(document.getElementById('edit-pgw-sesi').value);
+            const l = document.getElementById('edit-pgw-lvl').value;
+            const rombelSel = document.getElementById('edit-pgw-rombel');
+            
+            rombelSel.innerHTML = '<option value="">Pilih Rombel</option>';
+            if(!h || !s || !l) return;
+            
+            if(currentScheduleData[h] && currentScheduleData[h][l]) {
+                currentScheduleData[h][l].rombels.forEach(r => {
+                    rombelSel.innerHTML += `<option value="${r}">${r}</option>`;
+                });
+            }
+        }
+
+        window.updateEditorPgwOut = function() {
+            const h = document.getElementById('edit-pgw-hari').value;
+            const s = parseInt(document.getElementById('edit-pgw-sesi').value);
+            const l = document.getElementById('edit-pgw-lvl').value;
+            const r = document.getElementById('edit-pgw-rombel').value;
+            const out = document.getElementById('edit-pgw-out');
+            
+            out.innerHTML = '<option value="">-- Pilih Aksi --</option>';
+            out.innerHTML += '<option value="ADD_ONLY" class="text-green-400 font-bold">➕ Tidak Ada (Hanya Tambah)</option>';
+            
+            if(h && s && l && r && currentScheduleData[h][l]) {
+                const sesi = currentScheduleData[h][l].sessions.find(x => x.jam === s);
+                if(sesi && sesi.pengawas && sesi.pengawas[r]) {
+                    sesi.pengawas[r].forEach(g => out.innerHTML += `<option value="${g}">Ganti: ${g}</option>`);
+                }
+            }
+            updateEditorPgwIn(); 
+        }
+
+        window.updateEditorPgwIn = function() {
+            const h = document.getElementById('edit-pgw-hari').value;
+            const s = parseInt(document.getElementById('edit-pgw-sesi').value);
+            const masuk = document.getElementById('edit-pgw-in');
+            masuk.innerHTML = '<option value="">-- Standby --</option>';
+            
+            let assigned = [];
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
+                    if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
+                }
+            });
+            let dedicatedGurus = getActiveDedicatedGurus(); 
+            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+            free.forEach(t => masuk.innerHTML += `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`);
+        }
+
+        function saveEditorPengawas() {
+            const h = document.getElementById('edit-pgw-hari').value;
+            const s = parseInt(document.getElementById('edit-pgw-sesi').value);
+            const l = document.getElementById('edit-pgw-lvl').value;
+            const r = document.getElementById('edit-pgw-rombel').value;
+            const outT = document.getElementById('edit-pgw-out').value;
+            const inT = document.getElementById('edit-pgw-in').value;
+            const alert = document.getElementById('edit-pgw-alert');
+
+            if(!h || !s || !l || !r || !outT || !inT) { alert.innerText = "Lengkapi data!"; alert.classList.remove('hidden'); return; }
+
+            const sesiData = currentScheduleData[h]?.[l]?.sessions.find(x => x.jam === s);
+            let success = false;
+            
+            if(sesiData) {
+                if(!sesiData.pengawas[r]) sesiData.pengawas[r] = [];
+                
+                if (outT === 'ADD_ONLY') {
+                    sesiData.pengawas[r].push(inT);
+                    success = true;
+                } else {
+                    let idx = sesiData.pengawas[r].indexOf(outT);
+                    if(idx !== -1) { 
+                        sesiData.pengawas[r][idx] = inT; 
+                        success = true; 
+                    }
+                }
+            }
+            
+            if(success) {
+                renderAllMatrices(); 
+                closeModal('modal-pengawas'); 
+                showToast("Pengawas berhasil diupdate secara manual!");
+            } else { 
+                alert.innerText = "Gagal memproses."; alert.classList.remove('hidden'); 
+            }
         }
 
         // TAMPILKAN MATRIKS JADWAL
@@ -990,6 +1602,7 @@
             const container = document.getElementById('matrix-containers');
             container.innerHTML = '';
             const thn = savedSetupData.thn || "2025/2026";
+            const jenisUtama = document.getElementById('uji-sd-1')?.value || "STS / SAS";
 
             ['SD', 'SMP', 'SMA'].forEach(level => {
                 let allRombels = [];
@@ -1003,16 +1616,26 @@
                 <div class="glass-panel p-6 rounded-xl level-container ${lvlLC}-container">
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 no-print gap-4">
                         <h3 class="text-2xl font-black text-${color}-400 uppercase">Jadwal ${level}</h3>
-                        <div class="flex flex-wrap gap-2 admin-only">
-                            <button onclick="exportLevelJS('${level}', false)" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Ekspor Excel Pengawas</button>
-                            <button onclick="exportLevelJS('${level}', true)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Jadwal Ujian Siswa</button>
-                            <button onclick="printSubjectsOnly('${level}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-[10px] uppercase tracking-tighter">Cetak Jadwal Pelajaran</button>
+                        
+                        <div class="flex flex-wrap justify-end gap-2">
+                            <!-- Tombol Export selalu muncul -->
+                            <button onclick="exportLevelJS('${level}', false)" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Pengawas</button>
+                            <button onclick="exportLevelJS('${level}', true)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Siswa</button>
+                            <button onclick="printSubjectsOnly('${level}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">🖨️ Cetak Pelajaran</button>
+                            
+                            <!-- Tombol Editor HANYA di Preview -->
+                            <button onclick="window.openEditorMapelMenu('${level}')" class="preview-only bg-blue-900/80 hover:bg-blue-800 border border-blue-500 text-blue-100 font-bold py-2 px-3 rounded shadow-[0_0_10px_rgba(59,130,246,0.5)] flex items-center transition text-[10px] uppercase">
+                                📚 Dashboard Editor Mapel
+                            </button>
+                            <button onclick="window.openEditorPengawas('${level}')" class="preview-only bg-purple-900/80 hover:bg-purple-800 border border-purple-500 text-purple-100 font-bold py-2 px-3 rounded shadow-[0_0_10px_rgba(168,85,247,0.5)] flex items-center transition text-[10px] uppercase">
+                                🧑‍🏫 Ganti Pengawas
+                            </button>
                         </div>
                     </div>
                     
                     <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
                         <div class="text-center mb-6 border-b-[3px] border-black pb-4">
-                            <h1 class="text-xl font-black uppercase">JADWAL UJIAN - TINGKAT ${level}</h1>
+                            <h1 class="text-xl font-black uppercase">PENGAWAS UJIAN ${jenisUtama} - ${level}</h1>
                             <h2 class="text-lg font-bold uppercase">AL-WILDAN ISLAMIC SCHOOL BEKASI</h2>
                             <p class="text-md font-bold uppercase">TAHUN AJARAN ${thn}</p>
                         </div>
@@ -1037,7 +1660,10 @@
                     if(!data) return;
                     
                     let totalRowSpanHari = 0;
-                    data.sessions.forEach(s => { totalRowSpanHari += (!s.isBreak && Object.keys(s.pengawas || {}).length > 0) ? 2 : 1; });
+                    data.sessions.forEach(s => { 
+                        let hasPengawas = !s.isBreak && s.pengawas && Object.keys(s.pengawas).length > 0;
+                        totalRowSpanHari += hasPengawas ? 2 : 1; 
+                    });
 
                     data.sessions.forEach((sesi, i) => {
                         html += `<tr>`;
@@ -1045,16 +1671,17 @@
                         html += `<td class="font-bold bg-white-cell border-black-custom">${sesi.jam}</td><td class="font-bold bg-white-cell border-black-custom">${sesi.waktu}</td>`;
                         
                         if(sesi.isBreak) {
-                            html += `<td colspan="${allRombels.length}" class="font-bold text-sm bg-gray-200 border-black-custom border-l-2-black uppercase tracking-widest">${sesi.mapelUtama[allRombels[0]] || ''}</td>`;
+                            html += `<td colspan="${allRombels.length}" class="font-bold text-sm bg-gray-200 border-black-custom border-l-2-black uppercase tracking-widest">${sesi.mapelUtama && sesi.mapelUtama[allRombels[0]] ? sesi.mapelUtama[allRombels[0]] : ''}</td>`;
                         } else {
-                            allRombels.forEach((r) => html += `<td class="font-bold text-sm bg-white-cell border-black-custom border-l-2-black">${sesi.mapelUtama[r] || '-'}</td>`);
+                            allRombels.forEach((r) => html += `<td class="font-bold text-sm bg-white-cell border-black-custom border-l-2-black">${sesi.mapelUtama && sesi.mapelUtama[r] ? sesi.mapelUtama[r] : '-'}</td>`);
                         }
                         html += `</tr>`;
 
-                        if(!sesi.isBreak && Object.keys(sesi.pengawas || {}).length > 0) {
+                        let hasPengawas = !sesi.isBreak && sesi.pengawas && Object.keys(sesi.pengawas).length > 0;
+                        if(hasPengawas) {
                             html += `<tr class="pengawas-row"><td colspan="2" class="bg-pengawas-${lvlLC} font-bold text-right pr-4 border-black-custom">Pengawas</td>`;
                             allRombels.forEach(rom => {
-                                let g = sesi.pengawas[rom] || [];
+                                let g = (sesi.pengawas && sesi.pengawas[rom]) ? sesi.pengawas[rom] : [];
                                 html += `<td class="p-0 bg-nama-${lvlLC} align-top border-black-custom border-l-2-black">${g.map(name => `<div class="bg-nama-${lvlLC} p-1 border-b border-black/20">${name}</div>`).join('')}</td>`;
                             });
                             html += `</tr>`;
@@ -1088,10 +1715,11 @@
             if(!table) return;
 
             const thn = savedSetupData.thn || "2025/2026";
+            const jenisUtama = "STS / SAS";
 
             ws.mergeCells(`A1:H1`);
             let cellKop1 = ws.getCell(`A1`);
-            cellKop1.value = skipPengawas ? `JADWAL UJIAN SISWA - ${level}` : `JADWAL PENGAWAS UJIAN - ${level}`;
+            cellKop1.value = skipPengawas ? `JADWAL UJIAN SISWA - ${level}` : `PENGAWAS UJIAN ${jenisUtama} - ${level}`;
             cellKop1.font = { size: 16, bold: true, name: 'Arial' };
             cellKop1.alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -1192,7 +1820,7 @@
                 }
             });
             Promise.all(promises).then(() => {
-                wb.xlsx.writeBuffer().then(buf => saveAs(new Blob([buf]), `Jadwal_Lengkap.xlsx`));
+                wb.xlsx.writeBuffer().then(buf => saveAs(new Blob([buf]), `Jadwal_Lengkap_Pengawas.xlsx`));
             });
         };
 
@@ -1223,10 +1851,17 @@
                 if(sesiSelect) {
                     sesiSelect.innerHTML = '<option value="">-- Sesi --</option>';
                     if(h && currentScheduleData[h]) {
-                        let sessions = currentScheduleData[h]['SD']?.sessions || currentScheduleData[h]['SMP']?.sessions || [];
-                        sessions.forEach(sec => {
-                            if(!sec.isBreak) sesiSelect.innerHTML += `<option value="${sec.jam}">Jam Ke-${sec.jam}</option>`;
+                        let maxS = 0;
+                        ['SD', 'SMP', 'SMA'].forEach(l => {
+                            if(currentScheduleData[h][l]) {
+                                currentScheduleData[h][l].sessions.forEach(sec => {
+                                    if(!sec.isBreak && sec.jam > maxS) maxS = sec.jam;
+                                });
+                            }
                         });
+                        for(let i=1; i<=maxS; i++) {
+                            sesiSelect.innerHTML += `<option value="${i}">Sesi ${i}</option>`;
+                        }
                     }
                 }
                 if(type === 'cek') updateGuruKosongList();
@@ -1244,7 +1879,7 @@
             if(!h || !s) { drop.innerHTML = '<option value="">-- Pilih Hari/Sesi --</option>'; return; }
             let assigned = [];
             ['SD','SMP','SMA'].forEach(lvl => {
-                if(currentScheduleData[h]?.[lvl]) {
+                if(currentScheduleData[h] && currentScheduleData[h][lvl]) {
                     const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
                     if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
                 }
@@ -1296,7 +1931,21 @@
             let counts = {}; dummyTeachers.forEach(t => counts[t] = 0);
             if (savedSetupData.ketua) delete counts[savedSetupData.ketua];
 
-            for(let h in currentScheduleData) for(let l in currentScheduleData[h]) if(currentScheduleData[h][l]) currentScheduleData[h][l].sessions.forEach(s => { if(s.pengawas) { for(let r in s.pengawas) s.pengawas[r].forEach(g => { if(counts[g] !== undefined) counts[g]++ }) } });
+            for(let h in currentScheduleData) {
+                for(let l in currentScheduleData[h]) {
+                    if(currentScheduleData[h][l]) {
+                        currentScheduleData[h][l].sessions.forEach(s => { 
+                            if(!s.isBreak && s.pengawas) { 
+                                for(let r in s.pengawas) {
+                                    if(s.pengawas[r]) {
+                                        s.pengawas[r].forEach(g => { if(counts[g] !== undefined) counts[g]++ });
+                                    }
+                                }
+                            } 
+                        });
+                    }
+                }
+            }
             let sorted = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
             container.innerHTML = sorted.map(t => `<div class="p-2 border border-white/10 rounded flex justify-between"><span>${t}</span><span class="font-bold">${counts[t]}</span></div>`).join('');
         }
@@ -1315,8 +1964,10 @@
             let found = false;
             if(sesiData && sesiData.pengawas) {
                 for(let r in sesiData.pengawas) {
-                    let idx = sesiData.pengawas[r].indexOf(outT);
-                    if(idx !== -1) { sesiData.pengawas[r][idx] = inT; found = true; }
+                    if(sesiData.pengawas[r]) {
+                        let idx = sesiData.pengawas[r].indexOf(outT);
+                        if(idx !== -1) { sesiData.pengawas[r][idx] = inT; found = true; }
+                    }
                 }
             }
 
