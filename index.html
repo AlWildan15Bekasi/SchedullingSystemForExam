@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Penjadwalan Pengawas Ujian</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
+    <script src="https://cdn.tailwindcss.com"></script>        
     <!-- ExcelJS & FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -153,9 +152,9 @@
             <p class="text-gray-400 text-xs mb-8">Access restricted to authorized scheduling personnel.</p>
             
             <form id="login-form" class="space-y-4">
-                <input type="text" placeholder="Username" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
-                <input type="password" placeholder="Password" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
-                <button type="submit" class="w-full bg-schoolGold hover:bg-neonGold text-schoolBlue font-black tracking-widest py-3 rounded-lg transition duration-300 shadow-neon uppercase mt-4">
+                <input type="text" id="login-user" placeholder="Username" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
+                <input type="password" id="login-pass" placeholder="Password" required class="w-full px-4 py-3 rounded-lg futuristic-input text-center">
+                <button type="submit" id="btn-login-submit" class="w-full bg-schoolGold hover:bg-neonGold text-schoolBlue font-black tracking-widest py-3 rounded-lg transition duration-300 shadow-neon uppercase mt-4">
                     Authenticate &rarr;
                 </button>
             </form>
@@ -358,7 +357,8 @@
                     <div><label class="block text-xs text-gray-400 mb-1">Tingkat</label><select id="rep-level" class="w-full p-2 rounded futuristic-input text-sm"><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA">SMA</option></select></div>
                     <div><label class="block text-xs text-gray-400 mb-1">Guru Izin (Keluar)</label><select id="rep-guru-izin" class="w-full p-2 rounded futuristic-input text-sm teacher-dropdown"></select></div>
                     <div><label class="block text-xs text-neonGold mb-1">Guru Pengganti (Masuk)</label><select id="rep-guru-pengganti" class="w-full p-2 rounded futuristic-input text-sm border-neonGold"></select></div>
-                    <div class="md:col-span-5 flex justify-end mt-2">
+                    <div class="md:col-span-5 flex justify-end mt-2 gap-3">
+                        <button id="btn-print-surat" onclick="generateSuratTugasPDF()" class="hidden bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded shadow transition tracking-widest uppercase">🖨️ Surat Tugas</button>
                         <button id="btn-replace" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-8 rounded shadow transition tracking-widest uppercase">Eksekusi</button>
                     </div>
                 </div>
@@ -534,6 +534,34 @@
         </div>
     </div>
 
+    <!-- MODAL PILIH HARI UNTUK CETAK REKAP PENGGANTI -->
+    <div id="modal-rekap-pdf" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-sm relative">
+            <h2 class="text-xl font-bold text-red-400 mb-4 border-b border-red-400/30 pb-2">Cetak Rekap Pengganti</h2>
+            <p class="text-xs text-gray-400 mb-4">Pilih hari ujian untuk menghasilkan PDF Rekapitulasi Pengawas Pengganti.</p>
+            
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-gray-400 mb-1">Pilih Hari Ujian</label>
+                <select id="print-rekap-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari"></select>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('modal-rekap-pdf')" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 text-sm">Batal</button>
+                <button onclick="generateRekapPDF()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 text-sm font-bold shadow-[0_0_10px_rgba(220,38,38,0.5)]">Cetak PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF (REKAP HARIAN) -->
+    <div id="hidden-rekap-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
+        <div id="rekap-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
+    </div>
+    
+    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF (SURAT TUGAS INDIVIDUAL) -->
+    <div id="hidden-surat-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
+        <div id="surat-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
+    </div>
+
     <!-- Script Logika Javascript -->
     <script>
         // Setup API Backend Google Apps Script
@@ -548,6 +576,16 @@
         let availableDays = []; 
         let savedSetupData = {}; 
         let excludedDates = []; 
+        
+        let lastReplacement = null; // Menyimpan data surat tugas terakhir
+
+        // FUNGSI PENJINAK DURASI WAKTU (Mencegah Typo Database/Kosong)
+        function getSafeDuration(obj) {
+            if (!obj) return 90; // Default aman
+            let val = obj.Durasi_Menit || obj.Durasi || obj.Waktu || obj.durasi_menit || obj.DURASI_MENIT;
+            let parsed = parseInt(val);
+            return isNaN(parsed) ? 90 : parsed;
+        }
 
         function showToast(msg, isError = false) {
             const t = document.getElementById('custom-toast');
@@ -555,20 +593,45 @@
             document.getElementById('toast-icon').innerText = isError ? '⚠️' : '✅';
             const bg = document.getElementById('toast-bg');
             bg.className = isError 
-                ? 'bg-red-900 border-2 border-red-500 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center' 
-                : 'bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center';
-            
+                 ? 'bg-red-900 border-2 border-red-500 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center' 
+                 : 'bg-schoolBlue border-2 border-schoolGold text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,184,88,0.4)] flex items-center';
+                        
             t.classList.remove('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
             setTimeout(() => { t.classList.add('opacity-0', 'translate-y-[-20px]', 'pointer-events-none'); }, 3000);
         }
 
-        // FAKING LOGIN
-        document.getElementById('login-form').addEventListener('submit', (e) => {
+        // LOGIN SYSTEM REAL
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('landing-section').classList.remove('hidden');
-            document.getElementById('landing-section').classList.add('flex');
-            showToast("Login Berhasil! Selamat Datang.");
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const btn = document.getElementById('btn-login-submit');
+            
+            btn.innerHTML = "Authenticating...";
+            btn.disabled = true;
+
+            try {
+                let res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'login', payload: { username: user, password: pass } })
+                });
+                let data = await res.json();
+                
+                if (data.status === 'success') {
+                    showToast(data.data.message);
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('landing-section').classList.remove('hidden');
+                    document.getElementById('landing-section').classList.add('flex');
+                    loadBackendData(); 
+                } else {
+                    showToast(data.message, true);
+                }
+            } catch(err) {
+                showToast("Gagal koneksi ke server. Periksa jaringan.", true);
+            }
+            
+            btn.innerHTML = "Authenticate &rarr;";
+            btn.disabled = false;
         });
 
         async function loadBackendData() {
@@ -594,11 +657,11 @@
                 showToast("Gagal memuat data. Periksa URL Apps Script.", true);
             }
         }
-        
+                
         function populateTeacherDropdowns() {
             document.querySelectorAll('.teacher-dropdown').forEach(select => {
                 if(select.id.includes('pengganti') || select.id.includes('edit-pgw-in')) return; 
-                select.innerHTML = `<option value="">-- Pilih Guru --</option>`;
+                 select.innerHTML = `<option value="">-- Pilih Guru --</option>`;
                 dummyTeachers.forEach(t => select.innerHTML += `<option value="${t}">${t}</option>`);
             });
         }
@@ -630,7 +693,7 @@
                 sorted.forEach(i => {
                     let optionsHtml = '<option value="">-- Non-Aktif --</option>';
                     allUjian.forEach(j => { optionsHtml += `<option value="${j}">${j}</option>`; });
-                    
+                                        
                     container.innerHTML += `
                     <div class="flex items-center gap-3 bg-black/30 p-2 rounded border border-white/10 hover:border-schoolGold/50 transition">
                         <input type="checkbox" id="chk-${prefix}-${i}" value="${i}" class="cyber-checkbox" checked>
@@ -646,10 +709,6 @@
             renderDynamic('smp-container', smpClasses, 'smp');
             renderDynamic('sma-container', smaClasses, 'sma');
         }
-
-        window.onload = () => {
-            loadBackendData();
-        };
 
         const secLanding = document.getElementById('landing-section');
         const secSetup = document.getElementById('setup-section');
@@ -673,13 +732,13 @@
 
         document.getElementById('setup-form').addEventListener('submit', (e) => {
             e.preventDefault(); 
-            savedSetupData.thn = document.getElementById('tahun-ajaran').value;
+             savedSetupData.thn = document.getElementById('tahun-ajaran').value;
             savedSetupData.ketua = document.getElementById('ketua-pelaksana').value;
             savedSetupData.tglMulai = document.getElementById('tgl-mulai').value;
             savedSetupData.tglSelesai = document.getElementById('tgl-selesai').value;
             excludedDates = []; 
-            hideAll(); 
-            secDashboard.classList.remove('hidden');
+             hideAll(); 
+             secDashboard.classList.remove('hidden');
         });
 
         // MENU 2: LOAD DARI DATABASE (ADMIN PANEL)
@@ -690,8 +749,10 @@
                 let data = await res.json();
                 if (data.status === 'success' && data.data) {
                     currentScheduleData = data.data;
-                    availableDays = Object.keys(currentScheduleData);
                     
+                    if(!currentScheduleData.replacements) currentScheduleData.replacements = [];
+                    availableDays = Object.keys(currentScheduleData).filter(k => k !== 'replacements');
+                                        
                     secResult.classList.remove('mode-preview');
                     secResult.classList.add('mode-admin');
 
@@ -708,7 +769,7 @@
                 }
             } catch(e) {
                 console.error(e); 
-                showToast("Gagal memuat data.", true);
+                 showToast("Gagal memuat data.", true);
             }
         });
 
@@ -769,7 +830,9 @@
             let dedicated = new Set();
             if(!currentScheduleData) return dedicated;
             let sdRombels = [];
-            for(let h in currentScheduleData) {
+            let days = Object.keys(currentScheduleData).filter(k => k !== 'replacements');
+
+            for(let h of days) {
                 if(currentScheduleData[h] && currentScheduleData[h]['SD'] && currentScheduleData[h]['SD'].rombels) {
                     currentScheduleData[h]['SD'].rombels.forEach(r => { if(r.match(/^[123]\s/)) sdRombels.push(r); });
                 }
@@ -785,7 +848,7 @@
             let workload = {};
             masterGurus.forEach(g => workload[g.Nama_Guru] = 0);
             let assignedGlobal = {}; 
-            let dedicatedSD13 = getActiveDedicatedGurus();
+             let dedicatedSD13 = getActiveDedicatedGurus();
 
             availableDays.forEach(hari => {
                 assignedGlobal[hari] = {};
@@ -794,25 +857,34 @@
                     let data = currentScheduleData[hari][lvl];
                     data.sessions.forEach(sesi => {
                         if(sesi.isBreak) return;
+                        
+                        let jenjangAdaUjian = false;
+                        for (let r in sesi.mapelUtama) {
+                            if (sesi.mapelUtama[r] && sesi.mapelUtama[r] !== "-") { jenjangAdaUjian = true; break; }
+                        }
+                        if (!jenjangAdaUjian) return;
+
                         if(!assignedGlobal[hari][sesi.jam]) assignedGlobal[hari][sesi.jam] = new Set();
                         let pengawasMap = {};
 
                         data.rombels.forEach(r => {
-                            let isUjian = sesi.mapelUtama[r] && sesi.mapelUtama[r] !== "-";
+                            let mName = sesi.mapelUtama && sesi.mapelUtama[r] ? sesi.mapelUtama[r] : "-";
+                            let isUjian = mName !== "-";
                             if(!isUjian) return;
 
                             let tingkatMatch = r.match(/\d+/);
                             let tingkat = tingkatMatch ? parseInt(tingkatMatch[0]) : 0;
                             let jenjang = lvl;
-                            
+                                                        
                             if (jenjang === 'SD' && tingkat >= 1 && tingkat <= 3) {
                                 let dedicatedGurusRoom = masterGurus.filter(g => g.Keterangan && g.Keterangan.includes(r));
-                                dedicatedGurusRoom = dedicatedGurusRoom.filter(g => g.Nama_Guru !== savedSetupData.ketua);
-                                
                                 let names = dedicatedGurusRoom.map(g => g.Nama_Guru);
                                 
+                                let isKetuaHere = names.includes(savedSetupData.ketua);
+                                names = names.filter(n => n !== savedSetupData.ketua);
+                                                                
                                 // BACKUP JIKA KETUA ADALAH GURU KELAS SD
-                                if(names.length === 0) {
+                                if(names.length === 0 && isKetuaHere) {
                                     let backupGuru = masterGurus.filter(g => {
                                         return g.Nama_Guru !== savedSetupData.ketua && 
                                                g.Jenjang_Diajar === 'SD' && 
@@ -827,28 +899,28 @@
                                         names = ["-TBA-"];
                                     }
                                 }
-
-                                pengawasMap[r] = names;
+                                
+                                pengawasMap[r] = names.length > 0 ? names : ["-TBA-"];
                                 names.forEach(n => { if(n !== "-TBA-") assignedGlobal[hari][sesi.jam].add(n); });
                             } else {
                                 let availableForRoom = masterGurus.filter(g => {
                                     if(g.Nama_Guru === savedSetupData.ketua) return false;
                                     if(g.Jenjang_Diajar !== jenjang) return false; 
-                                    if(dedicatedSD13.has(g.Nama_Guru)) return false; 
-                                    if(assignedGlobal[hari][sesi.jam].has(g.Nama_Guru)) return false; 
-                                    return true;
+                                     if(dedicatedSD13.has(g.Nama_Guru)) return false; 
+                                     if(assignedGlobal[hari][sesi.jam].has(g.Nama_Guru)) return false; 
+                                     return true;
                                 });
 
                                 let picked = "-TBA-";
                                 if(availableForRoom.length > 0) {
                                     shuffleArray(availableForRoom); 
-                                    availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
+                                     availableForRoom.sort((a, b) => workload[a.Nama_Guru] - workload[b.Nama_Guru]);
                                     picked = availableForRoom[0].Nama_Guru;
                                     workload[picked]++; 
-                                    assignedGlobal[hari][sesi.jam].add(picked); 
-                                }
+                                     assignedGlobal[hari][sesi.jam].add(picked); 
+                                 }
                                 pengawasMap[r] = [picked]; 
-                            }
+                             }
                         });
                         sesi.pengawas = pengawasMap;
                     });
@@ -860,16 +932,16 @@
         // LOGIKA UTAMA: MESIN PEMBENTUK JADWAL MAPEL BARU DARI AWAL
         // ==============================================================
         function buildScheduleState(isRefresh = false) {
-            currentScheduleData = {}; 
-            const startDate = new Date(savedSetupData.tglMulai || new Date());
+            currentScheduleData = { replacements: [] }; 
+             const startDate = new Date(savedSetupData.tglMulai || new Date());
             const endDate = new Date(savedSetupData.tglSelesai || new Date());
-            
+                        
             availableDays = [];
             let currDateGen = new Date(startDate);
             while(currDateGen <= endDate) {
                 let dStrRaw = currDateGen.toISOString().split('T')[0];
                 if(currDateGen.getDay() !== 0 && currDateGen.getDay() !== 6 && !excludedDates.includes(dStrRaw)) { 
-                    let dStr = currDateGen.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+                     let dStr = currDateGen.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
                     availableDays.push(dStr);
                     currentScheduleData[dStr] = { SD: null, SMP: null, SMA: null };
                 }
@@ -909,23 +981,23 @@
                     if (name.includes('akidah')) return 'grup_akidah';
                     if (name.includes('fikih') || name.includes('fiqih')) return 'grup_fikih';
                     return name; 
-                }
+                 }
 
                 let uniqueMapelGroups = [...new Set(jenjangTmpls.map(t => getFuzzyMapelGroup(t.Mata_Pelajaran)))];
-                
+                                
                 // MENGACAK URUTAN GRUP MAPEL (DINAMIS)
                 shuffleArray(uniqueMapelGroups);
-                
+                                
                 uniqueMapelGroups.sort((a,b) => {
                     let exA = ['grup_math', 'grup_science', 'grup_fisika', 'grup_kimia'].includes(a) ? 1 : 0;
                     let exB = ['grup_math', 'grup_science', 'grup_fisika', 'grup_kimia'].includes(b) ? 1 : 0;
                     if(exA !== exB) return exB - exA; 
-                    return 0; 
-                });
+                     return 0; 
+                 });
 
                 let rombelMap = {};
                 let rombelTingkat = {};
-                
+                                
                 for(let i = lvl.start; i <= lvl.end; i++) {
                     let chk = document.getElementById(`chk-${lvl.prefix}-${i}`);
                     let ujiSelect = document.getElementById(`uji-${lvl.prefix}-${i}`);
@@ -949,41 +1021,41 @@
                     let maxM = temp.length;
 
                     let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
-                    let totalExam = temp.reduce((s, m) => s + (parseInt(m.Durasi_Menit) || 90), 0);
+                    let totalExam = temp.reduce((s, m) => s + getSafeDuration(m), 0);
                     let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); 
-                    let endMins = startMins + totalExam + breakTime;
+                     let endMins = startMins + totalExam + breakTime;
                     if (endMins > 12 * 60) return false;
 
                     let isSD = lvl.id === 'SD';
                     let isSMP = lvl.id === 'SMP';
                     let isSMA = lvl.id === 'SMA';
                     let isKelasBawah = isSD && (tingkat >= 1 && tingkat <= 2); 
-                    let isKelasAtasSD = isSD && (tingkat >= 3 && tingkat <= 6);
+                     let isKelasAtasSD = isSD && (tingkat >= 3 && tingkat <= 6);
 
                     if ((isSMP || isSMA) && isExact(newMapel) && chunk.some(x => isExact(x))) return false;
 
                     if (isKelasBawah) {
                         if (maxM > 2) return false;
-                        let hasBig = temp.some(x => parseInt(x.Durasi_Menit) > 60);
+                        let hasBig = temp.some(x => getSafeDuration(x) > 60);
                         if (hasBig && maxM > 1) return false;
                     } else if (isKelasAtasSD) {
                         if (maxM > 2) return false;
-                        let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
+                        let countBig = temp.filter(x => getSafeDuration(x) > 60).length;
                         if (countBig > 1) return false;
                     } else if (isSMP) {
                         if (maxM > 3) return false;
                         if (maxM === 3) {
                             let d3 = allChunksForRombel.filter(c => c.length === 3).length;
                             if (d3 >= 2) return false;
-                            let count90Plus = temp.filter(x => parseInt(x.Durasi_Menit) >= 90).length;
+                            let count90Plus = temp.filter(x => getSafeDuration(x) >= 90).length;
                             if (count90Plus > 1) return false; 
-                        }
+                         }
                     } else if (isSMA) {
                         if (maxM > 3) return false;
                         if (maxM === 3) {
                             let d3 = allChunksForRombel.filter(c => c.length === 3).length;
                             if (d3 >= 3) return false;
-                            let countBig = temp.filter(x => parseInt(x.Durasi_Menit) > 60).length;
+                            let countBig = temp.filter(x => getSafeDuration(x) > 60).length;
                             if (countBig > 2) return false;
                         }
                     }
@@ -1001,12 +1073,10 @@
                     if (targetRombels.length === 0) continue;
 
                     let placedDay = -1;
-                    
-                    // Acak urutan pengecekan hari biar mapel ga selalu numpuk di hari pertama
+                                        // Acak urutan pengecekan hari biar mapel ga selalu numpuk di hari pertama
                     let dayIndices = Array.from({length: totalDays}, (_, i) => i);
                     shuffleArray(dayIndices);
-                    
-                    let bestScores = [];
+                                        let bestScores = [];
 
                     for(let d of dayIndices) {
                         let isValidForAll = true;
@@ -1040,10 +1110,9 @@
                                 let temp = [...chunk, tr.mapelObj];
                                 let maxM = temp.length;
                                 let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
-                                let totalExam = temp.reduce((s, x) => s + (parseInt(x.Durasi_Menit) || 90), 0);
+                                let totalExam = temp.reduce((s, x) => s + getSafeDuration(x), 0);
                                 let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
-                                
-                                if ((startMins + totalExam + breakTime) > 12 * 60) { canFitJam12 = false; break; }
+                                                                if ((startMins + totalExam + breakTime) > 12 * 60) { canFitJam12 = false; break; }
                                 if (lvl.id === 'SD' && maxM > 2) { canFitJam12 = false; break; }
                                 if ((lvl.id === 'SMP' || lvl.id === 'SMA') && maxM > 3) { canFitJam12 = false; break; }
                             }
@@ -1101,7 +1170,7 @@
                         let chunk = rd.chunks[hariIdx] || [];
                         if(chunk.length > maxMapelInDay) maxMapelInDay = chunk.length;
                         chunk.forEach((c, idx) => {
-                            let dur = parseInt(c.Durasi_Menit) || 90;
+                            let dur = getSafeDuration(c);
                             if(dur > sessionMaxDurations[idx]) sessionMaxDurations[idx] = dur;
                         });
                     });
@@ -1112,8 +1181,7 @@
                     let dzikirDur = maxMapelInDay > 2 ? 15 : 50;
                     let currentTime = new Date(2000, 0, 1, 7, 0);
                     let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
-                    
-                    let dzikirMap = {};
+                                        let dzikirMap = {};
                     allRombels.forEach(r => dzikirMap[r] = maxMapelInDay > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
 
                     dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
@@ -1136,16 +1204,16 @@
                                 mapelSesiMap[r] = isUjian.Mata_Pelajaran;
                             } else {
                                 mapelSesiMap[r] = "-"; 
-                            }
+                             }
                         });
 
                         dailySessions.push({ jam: s + 1, waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeSesi), mapelUtama: mapelSesiMap, pengawas: pengawasMap, isBreak: false });
                         currentTime = endTimeSesi;
 
                         if (s < maxMapelInDay - 1) { 
-                            let breakDur = maxMapelInDay === 2 ? 30 : 15; 
-                            let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
-                            let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
+                             let breakDur = maxMapelInDay === 2 ? 30 : 15; 
+                             let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
+                             let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
                             dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
                             currentTime = breakEnd;
                         }
@@ -1161,8 +1229,7 @@
         function recalculateTimesAndBreaks(lvl) {
             availableDays.forEach(hari => {
                 if(!currentScheduleData[hari] || !currentScheduleData[hari][lvl]) return;
-                
-                let data = currentScheduleData[hari][lvl];
+                                let data = currentScheduleData[hari][lvl];
                 data.sessions = data.sessions.filter(s => !s.isBreak);
                 let numMapel = data.sessions.length;
                 if(numMapel === 0) return;
@@ -1175,8 +1242,9 @@
                         if(mName && mName !== "-") {
                             let selectEl = document.getElementById(`uji-${lvl.toLowerCase()}-${r.match(/\d+/)[0]}`);
                             let jenis = selectEl ? selectEl.value : null;
-                            let tmpl = masterTemplates.find(t => t.Mata_Pelajaran === mName && t.Jenis_Ujian === jenis);
-                            let dur = tmpl ? parseInt(tmpl.Durasi_Menit) || 90 : 90;
+                            let tingkatKls = r.match(/\d+/)[0];
+                            let tmpl = masterTemplates.find(t => t.Mata_Pelajaran === mName && t.Jenis_Ujian === jenis && String(t.Tingkat_Kelas) === String(tingkatKls)) || masterTemplates.find(t => t.Mata_Pelajaran === mName && t.Jenis_Ujian === jenis);
+                            let dur = tmpl ? getSafeDuration(tmpl) : 90;
                             if(dur > maxD) maxD = dur;
                         }
                     });
@@ -1187,8 +1255,7 @@
                 let dzikirDur = numMapel > 2 ? 15 : 50;
                 let currentTime = new Date(2000, 0, 1, 7, 0);
                 let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
-                
-                let dzikirMap = {};
+                                let dzikirMap = {};
                 data.rombels.forEach(r => dzikirMap[r] = numMapel > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
 
                 newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
@@ -1203,9 +1270,9 @@
                     currentTime = endTimeSesi;
 
                     if (idx < numMapel - 1) { 
-                        let breakDur = numMapel === 2 ? 30 : 15; 
-                        let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
-                        let breakMap = {}; data.rombels.forEach(r => breakMap[r] = "Istirahat");
+                         let breakDur = numMapel === 2 ? 30 : 15; 
+                         let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
+                         let breakMap = {}; data.rombels.forEach(r => breakMap[r] = "Istirahat");
                         newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
                         currentTime = breakEnd;
                     }
@@ -1227,8 +1294,7 @@
             list.innerHTML = '';
             const startDate = new Date(document.getElementById('tgl-mulai').value || new Date());
             const endDate = new Date(document.getElementById('tgl-selesai').value || new Date());
-            
-            let currDate = new Date(startDate);
+                        let currDate = new Date(startDate);
             while(currDate <= endDate) {
                 if(currDate.getDay() !== 0 && currDate.getDay() !== 6) {
                     let dRaw = currDate.toISOString().split('T')[0];
@@ -1267,8 +1333,7 @@
             const lvl = document.getElementById('menu-mapel-lvl').value;
             const kelasDrop = document.getElementById('menu-mapel-kelas');
             kelasDrop.innerHTML = '<option value="">-- Pilih Kelas --</option>';
-            
-            let checkboxes = document.querySelectorAll(`input[id^="chk-${lvl ? lvl.toLowerCase() : ''}-"]`);
+                        let checkboxes = document.querySelectorAll(`input[id^="chk-${lvl ? lvl.toLowerCase() : ''}-"]`);
             if(checkboxes.length > 0) {
                 checkboxes.forEach(chk => {
                     if(chk.checked) kelasDrop.innerHTML += `<option value="${chk.value}">Kelas ${chk.value}</option>`;
@@ -1289,8 +1354,7 @@
             closeModal('modal-editor-menu');
             const lvl = document.getElementById('menu-mapel-lvl').value;
             const kelasVal = document.getElementById('menu-mapel-kelas').value;
-            
-            let htmlHari = '<option value="">Pilih Hari</option>';
+                        let htmlHari = '<option value="">Pilih Hari</option>';
             availableDays.forEach(h => { if(currentScheduleData[h] && currentScheduleData[h][lvl]) htmlHari += `<option value="${h}">${h}</option>`; });
 
             if(type === 'tukar') {
@@ -1301,7 +1365,7 @@
                 document.getElementById('edit-tukar-tgt-sesi').innerHTML = '<option value="">Sesi Mapel</option>';
                 openModal('modal-mapel-tukar');
             } 
-            else if(type === 'hapus') {
+             else if(type === 'hapus') {
                 document.getElementById('label-hapus-kelas').innerText = `Kelas ${kelasVal} (${lvl})`;
                 document.getElementById('edit-hapus-hari').innerHTML = htmlHari;
                 document.getElementById('edit-hapus-sesi').innerHTML = '<option value="">Sesi Mapel</option>';
@@ -1317,22 +1381,20 @@
         }
 
         window.backToMenu = function(currentId) { 
-            closeModal(currentId); 
-            openModal('modal-editor-menu'); 
-        }
+             closeModal(currentId); 
+             openModal('modal-editor-menu'); 
+         }
 
         window.updateSubSesi = function(prefix) {
             const lvl = document.getElementById('menu-mapel-lvl').value;
             const hari = document.getElementById(`edit-${prefix}-hari`).value;
             const sesi = document.getElementById(`edit-${prefix}-sesi`);
             sesi.innerHTML = '<option value="">Sesi Mapel</option>';
-            
-            if(hari && currentScheduleData[hari] && currentScheduleData[hari][lvl]) {
+                        if(hari && currentScheduleData[hari] && currentScheduleData[hari][lvl]) {
                 let maxS = 0;
                 currentScheduleData[hari][lvl].sessions.forEach(s => { if(!s.isBreak && s.jam > maxS) maxS = s.jam; });
                 for(let i=1; i<=maxS; i++) sesi.innerHTML += `<option value="${i}">Sesi ${i}</option>`;
-                
-                if(prefix === 'tambah-tgt') sesi.innerHTML += `<option value="NEW" class="text-neonGold font-bold">+ Buat Sesi Baru</option>`;
+                                if(prefix === 'tambah-tgt') sesi.innerHTML += `<option value="NEW" class="text-neonGold font-bold">+ Buat Sesi Baru</option>`;
             }
         }
 
@@ -1398,8 +1460,7 @@
 
             let targetRombels = currentScheduleData[hari][lvl].rombels.filter(r => r.match(/\d+/)[0] === kelasNum);
             let sesiObj = currentScheduleData[hari][lvl].sessions.find(x => !x.isBreak && x.jam === jam);
-            
-            targetRombels.forEach(r => {
+                        targetRombels.forEach(r => {
                 if(sesiObj && sesiObj.mapelUtama) {
                     sesiObj.mapelUtama[r] = "-";
                     if(sesiObj.pengawas && sesiObj.pengawas[r]) delete sesiObj.pengawas[r];
@@ -1427,7 +1488,7 @@
             const lvl = document.getElementById('menu-mapel-lvl').value;
             const kelasNum = document.getElementById('menu-mapel-kelas').value;
             const mapelData = document.getElementById('edit-tambah-mapel').value; 
-            const tHari = document.getElementById('edit-tambah-tgt-hari').value;
+             const tHari = document.getElementById('edit-tambah-tgt-hari').value;
             const tJamStr = document.getElementById('edit-tambah-tgt-sesi').value;
             const alert = document.getElementById('edit-tambah-alert');
 
@@ -1454,7 +1515,7 @@
                 dataTgt.rombels.forEach(r => tSesiObj.mapelUtama[r] = "-");
                 dataTgt.sessions.push(tSesiObj);
                 tJam = newJam; 
-            } else {
+             } else {
                 tSesiObj = dataTgt.sessions.find(x => !x.isBreak && x.jam === tJam);
             }
 
@@ -1482,13 +1543,11 @@
             const selHari = document.getElementById('edit-pgw-hari');
             selHari.innerHTML = '<option value="">Pilih Hari</option>';
             availableDays.forEach(h => selHari.innerHTML += `<option value="${h}">${h}</option>`);
-            
-            document.getElementById('edit-pgw-sesi').innerHTML = '<option value="">-</option>';
+                        document.getElementById('edit-pgw-sesi').innerHTML = '<option value="">-</option>';
             document.getElementById('edit-pgw-rombel').innerHTML = '<option value="">-</option>';
             document.getElementById('edit-pgw-out').innerHTML = '<option value="">-</option>';
             document.getElementById('edit-pgw-in').innerHTML = '<option value="">-</option>';
-            
-            document.getElementById('edit-pgw-alert').classList.add('hidden');
+                        document.getElementById('edit-pgw-alert').classList.add('hidden');
             openModal('modal-pengawas');
         }
 
@@ -1498,8 +1557,7 @@
             const sesi = document.getElementById('edit-pgw-sesi');
             sesi.innerHTML = '<option value="">Pilih Sesi</option>';
             if(!h || !l) return;
-            
-            let maxS = 0;
+                        let maxS = 0;
             if(currentScheduleData[h] && currentScheduleData[h][l]) {
                 currentScheduleData[h][l].sessions.forEach(s => { if(!s.isBreak && s.jam > maxS) maxS = s.jam; });
             }
@@ -1511,11 +1569,9 @@
             const s = parseInt(document.getElementById('edit-pgw-sesi').value);
             const l = document.getElementById('edit-pgw-lvl').value;
             const rombelSel = document.getElementById('edit-pgw-rombel');
-            
-            rombelSel.innerHTML = '<option value="">Pilih Rombel</option>';
+                        rombelSel.innerHTML = '<option value="">Pilih Rombel</option>';
             if(!h || !s || !l) return;
-            
-            if(currentScheduleData[h] && currentScheduleData[h][l]) {
+                        if(currentScheduleData[h] && currentScheduleData[h][l]) {
                 currentScheduleData[h][l].rombels.forEach(r => {
                     rombelSel.innerHTML += `<option value="${r}">${r}</option>`;
                 });
@@ -1528,26 +1584,23 @@
             const l = document.getElementById('edit-pgw-lvl').value;
             const r = document.getElementById('edit-pgw-rombel').value;
             const out = document.getElementById('edit-pgw-out');
-            
-            out.innerHTML = '<option value="">-- Pilih Aksi --</option>';
+                        out.innerHTML = '<option value="">-- Pilih Aksi --</option>';
             out.innerHTML += '<option value="ADD_ONLY" class="text-green-400 font-bold">➕ Tidak Ada (Hanya Tambah)</option>';
-            
-            if(h && s && l && r && currentScheduleData[h][l]) {
+                        if(h && s && l && r && currentScheduleData[h][l]) {
                 const sesi = currentScheduleData[h][l].sessions.find(x => x.jam === s);
-                if(sesi && sesi.pengawas && sesi.pengawas[r]) {
+                if(sesi && !sesi.isBreak && sesi.pengawas && sesi.pengawas[r]) {
                     sesi.pengawas[r].forEach(g => out.innerHTML += `<option value="${g}">Ganti: ${g}</option>`);
                 }
             }
             updateEditorPgwIn(); 
-        }
+         }
 
         window.updateEditorPgwIn = function() {
             const h = document.getElementById('edit-pgw-hari').value;
             const s = parseInt(document.getElementById('edit-pgw-sesi').value);
             const masuk = document.getElementById('edit-pgw-in');
             masuk.innerHTML = '<option value="">-- Standby --</option>';
-            
-            let assigned = [];
+                        let assigned = [];
             ['SD','SMP','SMA'].forEach(lvl => {
                 if(currentScheduleData[h]?.[lvl]) {
                     const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
@@ -1555,7 +1608,7 @@
                 }
             });
             let dedicatedGurus = getActiveDedicatedGurus(); 
-            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+             let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
             free.forEach(t => masuk.innerHTML += `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`);
         }
 
@@ -1572,29 +1625,26 @@
 
             const sesiData = currentScheduleData[h]?.[l]?.sessions.find(x => x.jam === s);
             let success = false;
-            
-            if(sesiData) {
+                        if(sesiData) {
                 if(!sesiData.pengawas[r]) sesiData.pengawas[r] = [];
-                
-                if (outT === 'ADD_ONLY') {
+                                if (outT === 'ADD_ONLY') {
                     sesiData.pengawas[r].push(inT);
                     success = true;
                 } else {
                     let idx = sesiData.pengawas[r].indexOf(outT);
                     if(idx !== -1) { 
-                        sesiData.pengawas[r][idx] = inT; 
-                        success = true; 
-                    }
+                         sesiData.pengawas[r][idx] = inT; 
+                         success = true; 
+                     }
                 }
             }
-            
-            if(success) {
-                renderAllMatrices(); 
-                closeModal('modal-pengawas'); 
-                showToast("Pengawas berhasil diupdate secara manual!");
-            } else { 
-                alert.innerText = "Gagal memproses."; alert.classList.remove('hidden'); 
-            }
+                        if(success) {
+                renderAllMatrices();
+                 closeModal('modal-pengawas');
+                 showToast("Pengawas berhasil diupdate secara manual!");
+            } else {
+                 alert.innerText = "Gagal memproses."; alert.classList.remove('hidden');
+             }
         }
 
         // TAMPILKAN MATRIKS JADWAL
@@ -1616,14 +1666,12 @@
                 <div class="glass-panel p-6 rounded-xl level-container ${lvlLC}-container">
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 no-print gap-4">
                         <h3 class="text-2xl font-black text-${color}-400 uppercase">Jadwal ${level}</h3>
-                        
-                        <div class="flex flex-wrap justify-end gap-2">
+                                                <div class="flex flex-wrap justify-end gap-2">
                             <!-- Tombol Export selalu muncul -->
                             <button onclick="exportLevelJS('${level}', false)" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Pengawas</button>
                             <button onclick="exportLevelJS('${level}', true)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Siswa</button>
                             <button onclick="printSubjectsOnly('${level}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">🖨️ Cetak Pelajaran</button>
-                            
-                            <!-- Tombol Editor HANYA di Preview -->
+                                                        <!-- Tombol Editor HANYA di Preview -->
                             <button onclick="window.openEditorMapelMenu('${level}')" class="preview-only bg-blue-900/80 hover:bg-blue-800 border border-blue-500 text-blue-100 font-bold py-2 px-3 rounded shadow-[0_0_10px_rgba(59,130,246,0.5)] flex items-center transition text-[10px] uppercase">
                                 📚 Dashboard Editor Mapel
                             </button>
@@ -1632,8 +1680,7 @@
                             </button>
                         </div>
                     </div>
-                    
-                    <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
+                                        <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
                         <div class="text-center mb-6 border-b-[3px] border-black pb-4">
                             <h1 class="text-xl font-black uppercase">PENGAWAS UJIAN ${jenisUtama} - ${level}</h1>
                             <h2 class="text-lg font-bold uppercase">AL-WILDAN ISLAMIC SCHOOL BEKASI</h2>
@@ -1658,19 +1705,17 @@
                 availableDays.forEach(hari => {
                     const data = currentScheduleData[hari] ? currentScheduleData[hari][level] : null;
                     if(!data) return;
-                    
-                    let totalRowSpanHari = 0;
+                                        let totalRowSpanHari = 0;
                     data.sessions.forEach(s => { 
-                        let hasPengawas = !s.isBreak && s.pengawas && Object.keys(s.pengawas).length > 0;
+                         let hasPengawas = !s.isBreak && s.pengawas && Object.keys(s.pengawas).length > 0;
                         totalRowSpanHari += hasPengawas ? 2 : 1; 
-                    });
+                     });
 
                     data.sessions.forEach((sesi, i) => {
                         html += `<tr>`;
                         if(i === 0) html += `<td rowspan="${totalRowSpanHari}" class="font-bold bg-white-cell border-black-custom">${hari}</td>`;
                         html += `<td class="font-bold bg-white-cell border-black-custom">${sesi.jam}</td><td class="font-bold bg-white-cell border-black-custom">${sesi.waktu}</td>`;
-                        
-                        if(sesi.isBreak) {
+                                                if(sesi.isBreak) {
                             html += `<td colspan="${allRombels.length}" class="font-bold text-sm bg-gray-200 border-black-custom border-l-2-black uppercase tracking-widest">${sesi.mapelUtama && sesi.mapelUtama[allRombels[0]] ? sesi.mapelUtama[allRombels[0]] : ''}</td>`;
                         } else {
                             allRombels.forEach((r) => html += `<td class="font-bold text-sm bg-white-cell border-black-custom border-l-2-black">${sesi.mapelUtama && sesi.mapelUtama[r] ? sesi.mapelUtama[r] : '-'}</td>`);
@@ -1762,8 +1807,7 @@
 
                     let classes = cell.className;
                     cell.querySelectorAll('div').forEach(d => classes += " " + d.className);
-                    
-                    let st = null;
+                                        let st = null;
                     for(let key in hexStyles) { if(classes.includes(key)) { st = hexStyles[key]; break; } }
 
                     if(st) {
@@ -1886,7 +1930,7 @@
             });
             
             let dedicatedGurus = getActiveDedicatedGurus(); 
-            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+             let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
             
             drop.innerHTML = free.length ? '<option value="">-- Pilih Pengganti --</option>' + free.map(t => `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`).join('') : '<option value="">Kosong</option>';
         }
@@ -1921,7 +1965,7 @@
             });
             
             let dedicatedGurus = getActiveDedicatedGurus(); 
-            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+             let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
             
             container.innerHTML = free.map(t => `<li class="text-green-400">✔ ${t.Nama_Guru} (${t.Jenjang_Diajar})</li>`).join('');
         }
@@ -1932,17 +1976,18 @@
             if (savedSetupData.ketua) delete counts[savedSetupData.ketua];
 
             for(let h in currentScheduleData) {
+                if(h === 'replacements') continue;
                 for(let l in currentScheduleData[h]) {
                     if(currentScheduleData[h][l]) {
                         currentScheduleData[h][l].sessions.forEach(s => { 
-                            if(!s.isBreak && s.pengawas) { 
-                                for(let r in s.pengawas) {
+                             if(!s.isBreak && s.pengawas) { 
+                                 for(let r in s.pengawas) {
                                     if(s.pengawas[r]) {
                                         s.pengawas[r].forEach(g => { if(counts[g] !== undefined) counts[g]++ });
                                     }
                                 }
                             } 
-                        });
+                         });
                     }
                 }
             }
@@ -1954,8 +1999,7 @@
             const h = document.getElementById('rep-hari').value, s = parseInt(document.getElementById('rep-sesi').value);
             const lvl = document.getElementById('rep-level').value, outT = document.getElementById('rep-guru-izin').value, inT = document.getElementById('rep-guru-pengganti').value;
             const al = document.getElementById('rep-alert');
-            
-            if(!h || !s || !outT || !inT) {
+                        if(!h || !s || !outT || !inT) {
                 al.innerText = "Lengkapi Data!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block";
                 setTimeout(() => al.classList.add('hidden'), 3000); return;
             }
@@ -1972,9 +2016,8 @@
             }
 
             if(found) {
-                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown(); 
-                
-                showToast("Menyimpan perubahan ke DB...", false);
+                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown();
+                                 showToast("Menyimpan perubahan ke DB...", false);
                 try {
                     let payload = {
                         detailSesi: `Hari ${h}, Sesi ${s}, Tingkat ${lvl}`,
@@ -1993,9 +2036,9 @@
                 } catch(e) { console.error(e); showToast("Gagal simpan ke server.", true); }
 
                 al.innerText = "Sukses!"; al.className = "mt-4 p-3 text-blue-300 bg-blue-900/50 block";
-            } else { 
-                al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block"; 
-            }
+            } else {
+                 al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block";
+             }
             setTimeout(() => al.classList.add('hidden'), 3000);
         });
 
