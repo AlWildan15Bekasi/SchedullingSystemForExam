@@ -9,6 +9,7 @@
     <!-- ExcelJS & FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -374,7 +375,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- MODAL EDITORS (PREVIEW PHASE)              -->
+    <!-- MODAL EDITORS                                -->
     <!-- ========================================== -->
     
     <!-- MODAL EDITOR TANGGAL LIBUR -->
@@ -534,6 +535,60 @@
         </div>
     </div>
 
+    <!-- MODAL EDITOR WAKTU (FITUR BARU) -->
+    <div id="modal-editor-waktu" class="modal-overlay">
+        <div class="glass-panel p-8 rounded-xl w-full max-w-md relative">
+            <h2 class="text-xl font-bold text-yellow-400 mb-4 border-b border-yellow-400/30 pb-2">⏱️ Editor Waktu</h2>
+            <p class="text-xs text-gray-400 mb-4">Atur waktu ujian per hari. Sistem akan langsung memperbarui jam di tabel tanpa mengubah formasi guru.</p>
+            
+            <div class="space-y-4 mb-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-1">Jenjang</label>
+                        <select id="edit-waktu-lvl" class="w-full p-2 rounded futuristic-input text-sm" onchange="loadEditorWaktuSettings()">
+                            <option value="SD">SD</option>
+                            <option value="SMP">SMP</option>
+                            <option value="SMA">SMA</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-1">Pilih Hari</label>
+                        <select id="edit-waktu-hari" class="w-full p-2 rounded futuristic-input text-sm" onchange="loadEditorWaktuSettings()">
+                            <!-- Pilihan hari akan dirender oleh JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 p-4 border border-yellow-500/30 bg-yellow-900/10 rounded-lg">
+                    <div>
+                        <label class="block text-xs font-bold text-yellow-300 mb-1">Waktu Mulai Ujian</label>
+                        <select id="edit-waktu-start" class="w-full p-2 rounded futuristic-input text-sm border-yellow-500/50">
+                            <option value="07:15">07:15 WIB</option>
+                            <option value="07:30">07:30 WIB</option>
+                            <option value="07:45">07:45 WIB</option>
+                            <option value="08:00">08:00 WIB</option>
+                            <option value="08:30">08:30 WIB</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-yellow-300 mb-1">Durasi Istirahat</label>
+                        <select id="edit-waktu-break" class="w-full p-2 rounded futuristic-input text-sm border-yellow-500/50">
+                            <option value="15">15 Menit</option>
+                            <option value="30">30 Menit</option>
+                            <option value="45">45 Menit</option>
+                            <option value="60">60 Menit</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('modal-editor-waktu')" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 text-sm">Batal</button>
+                <button onclick="saveEditorWaktu()" class="px-4 py-2 bg-yellow-600 text-schoolBlue rounded hover:bg-yellow-500 text-sm font-bold shadow-[0_0_10px_rgba(250,204,21,0.5)]">Terapkan Jam Hari Ini</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL PILIH HARI UNTUK CETAK REKAP PENGGANTI -->
     <div id="modal-rekap-pdf" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-sm relative">
@@ -578,6 +633,18 @@
         let excludedDates = []; 
         
         let lastReplacement = null; // Menyimpan data surat tugas terakhir
+
+        // VARIABEL BARU: MEMORI EDITOR WAKTU MULTIDIMENSI (Per Hari)
+        let customTimeSettings = {}; 
+
+        // Helper: Ambil settingan waktu untuk level & hari tertentu. Jika kosong, pakai default.
+        function getDayTimeSettings(lvl, hari) {
+            if (!customTimeSettings[lvl]) customTimeSettings[lvl] = {};
+            if (customTimeSettings[lvl][hari]) {
+                return customTimeSettings[lvl][hari];
+            }
+            return { start: '07:30', break: 30 }; // Default bawaan
+        }
 
         // FUNGSI PENJINAK DURASI WAKTU (Mencegah Typo Database/Kosong)
         function getSafeDuration(obj) {
@@ -1020,11 +1087,17 @@
                     let temp = [...chunk, newMapel];
                     let maxM = temp.length;
 
-                    let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
+                    // Menggunakan waktu dinamis dari Custom Settings
+                    let dayString = availableDays[targetDayIndex];
+                    let userSet = getDayTimeSettings(lvl.id, dayString);
+                    let [uH, uM] = userSet.start.split(':').map(Number);
+                    
+                    let startMins = (uH * 60) + uM;
                     let totalExam = temp.reduce((s, m) => s + getSafeDuration(m), 0);
-                    let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0); 
+                    let breakTime = (maxM - 1) * userSet.break;
+                    if (breakTime < 0) breakTime = 0;
                      let endMins = startMins + totalExam + breakTime;
-                    if (endMins > 12 * 60) return false;
+                    if (endMins > 12 * 60) return false; // Batas jam 12:00
 
                     let isSD = lvl.id === 'SD';
                     let isSMP = lvl.id === 'SMP';
@@ -1073,10 +1146,10 @@
                     if (targetRombels.length === 0) continue;
 
                     let placedDay = -1;
-                                        // Acak urutan pengecekan hari biar mapel ga selalu numpuk di hari pertama
+                    // Acak urutan pengecekan hari biar mapel ga selalu numpuk di hari pertama
                     let dayIndices = Array.from({length: totalDays}, (_, i) => i);
                     shuffleArray(dayIndices);
-                                        let bestScores = [];
+                    let bestScores = [];
 
                     for(let d of dayIndices) {
                         let isValidForAll = true;
@@ -1100,7 +1173,12 @@
                     // Fallback 1: Jika mentok aturan ekstrim
                     if (placedDay === -1) {
                         let fallbackScores = [];
+                        
                         for(let d of dayIndices) {
+                            let dayString = availableDays[d];
+                            let userSet = getDayTimeSettings(lvl.id, dayString);
+                            let [uH, uM] = userSet.start.split(':').map(Number);
+                            
                             let canFitJam12 = true;
                             let totalLoad = 0;
                             for (let tr of targetRombels) {
@@ -1109,10 +1187,13 @@
                                 totalLoad += chunk.length;
                                 let temp = [...chunk, tr.mapelObj];
                                 let maxM = temp.length;
-                                let startMins = maxM > 2 ? (7 * 60 + 15) : (8 * 60);
+                                
+                                let startMins = (uH * 60) + uM;
                                 let totalExam = temp.reduce((s, x) => s + getSafeDuration(x), 0);
-                                let breakTime = maxM === 2 ? 30 : (maxM === 3 ? 30 : 0);
-                                                                if ((startMins + totalExam + breakTime) > 12 * 60) { canFitJam12 = false; break; }
+                                let breakTime = (maxM - 1) * userSet.break;
+                                if (breakTime < 0) breakTime = 0;
+                                
+                                if ((startMins + totalExam + breakTime) > 12 * 60) { canFitJam12 = false; break; }
                                 if (lvl.id === 'SD' && maxM > 2) { canFitJam12 = false; break; }
                                 if ((lvl.id === 'SMP' || lvl.id === 'SMA') && maxM > 3) { canFitJam12 = false; break; }
                             }
@@ -1178,15 +1259,22 @@
                     if(maxMapelInDay === 0) return;
 
                     let dailySessions = [];
-                    let dzikirDur = maxMapelInDay > 2 ? 15 : 50;
-                    let currentTime = new Date(2000, 0, 1, 7, 0);
-                    let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
-                                        let dzikirMap = {};
+                    
+                    // Baca Konfigurasi Jam dari Memori untuk HARI INI
+                    let userSet = getDayTimeSettings(lvl.id, hari);
+                    let startSetting = userSet.start; 
+                    let breakSetting = userSet.break; 
+                    let [startH, startM] = startSetting.split(':').map(Number);
+                    
+                    let dzikirStartTime = new Date(2000, 0, 1, 7, 0); // Selalu mulai 07:00
+                    let endTimeDzikir = new Date(2000, 0, 1, startH, startM);
+
+                    let dzikirMap = {};
                     allRombels.forEach(r => dzikirMap[r] = maxMapelInDay > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
 
-                    dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
+                    dailySessions.push({ jam: '-', waktu: formatTime(dzikirStartTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
 
-                    currentTime = maxMapelInDay > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
+                    let currentTime = new Date(2000, 0, 1, startH, startM);
 
                     for(let s = 0; s < maxMapelInDay; s++) {
                         let dur = sessionMaxDurations[s];
@@ -1211,7 +1299,7 @@
                         currentTime = endTimeSesi;
 
                         if (s < maxMapelInDay - 1) { 
-                             let breakDur = maxMapelInDay === 2 ? 30 : 15; 
+                             let breakDur = breakSetting; 
                              let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
                              let breakMap = {}; allRombels.forEach(r => breakMap[r] = "Istirahat");
                             dailySessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
@@ -1225,11 +1313,11 @@
             reassignPengawas();
         }
 
-        // FUNGSI HITUNG ULANG JAM UNTUK EDITOR MAPEL
+        // FUNGSI HITUNG ULANG JAM UNTUK EDITOR (MAPEL & WAKTU)
         function recalculateTimesAndBreaks(lvl) {
             availableDays.forEach(hari => {
                 if(!currentScheduleData[hari] || !currentScheduleData[hari][lvl]) return;
-                                let data = currentScheduleData[hari][lvl];
+                let data = currentScheduleData[hari][lvl];
                 data.sessions = data.sessions.filter(s => !s.isBreak);
                 let numMapel = data.sessions.length;
                 if(numMapel === 0) return;
@@ -1252,14 +1340,21 @@
                 });
 
                 let newSessions = [];
-                let dzikirDur = numMapel > 2 ? 15 : 50;
-                let currentTime = new Date(2000, 0, 1, 7, 0);
-                let endTimeDzikir = new Date(currentTime.getTime() + dzikirDur * 60000);
-                                let dzikirMap = {};
+                
+                // Baca Konfigurasi Jam Terkini per HARI
+                let userSet = getDayTimeSettings(lvl, hari);
+                let startSetting = userSet.start; 
+                let breakSetting = userSet.break; 
+                let [startH, startM] = startSetting.split(':').map(Number);
+                
+                let dzikirStartTime = new Date(2000, 0, 1, 7, 0); 
+                let endTimeDzikir = new Date(2000, 0, 1, startH, startM);
+
+                let dzikirMap = {};
                 data.rombels.forEach(r => dzikirMap[r] = numMapel > 2 ? "Dzikir & Muroja'ah" : "Dzikir, Dhuha & Muroja'ah");
 
-                newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
-                currentTime = numMapel > 2 ? new Date(2000, 0, 1, 7, 15) : new Date(2000, 0, 1, 8, 0);
+                newSessions.push({ jam: '-', waktu: formatTime(dzikirStartTime) + ' - ' + formatTime(endTimeDzikir), mapelUtama: dzikirMap, isBreak: true });
+                let currentTime = new Date(2000, 0, 1, startH, startM);
 
                 data.sessions.forEach((s, idx) => {
                     let dur = sessionMaxDurations[idx] || 90;
@@ -1270,7 +1365,7 @@
                     currentTime = endTimeSesi;
 
                     if (idx < numMapel - 1) { 
-                         let breakDur = numMapel === 2 ? 30 : 15; 
+                         let breakDur = breakSetting; 
                          let breakEnd = new Date(currentTime.getTime() + breakDur * 60000); 
                          let breakMap = {}; data.rombels.forEach(r => breakMap[r] = "Istirahat");
                         newSessions.push({ jam: '-', waktu: formatTime(currentTime) + ' - ' + formatTime(breakEnd), mapelUtama: breakMap, isBreak: true });
@@ -1537,6 +1632,54 @@
             closeModal('modal-mapel-tambah'); showToast(`Mapel dipindah ke Hari ${tHari}!`);
         }
 
+        // ==========================================
+        // FITUR BARU: EDITOR WAKTU
+        // ==========================================
+        window.openEditorWaktu = function(lvl) {
+            document.getElementById('edit-waktu-lvl').value = lvl;
+            
+            const selHari = document.getElementById('edit-waktu-hari');
+            selHari.innerHTML = '';
+            if (availableDays.length > 0) {
+                availableDays.forEach(h => selHari.innerHTML += `<option value="${h}">${h}</option>`);
+            } else {
+                selHari.innerHTML = '<option value="">Data Hari Kosong</option>';
+            }
+
+            window.loadEditorWaktuSettings();
+            openModal('modal-editor-waktu');
+        }
+
+        window.loadEditorWaktuSettings = function() {
+            const lvl = document.getElementById('edit-waktu-lvl').value;
+            const hari = document.getElementById('edit-waktu-hari').value;
+            if(!hari) return;
+
+            const settings = getDayTimeSettings(lvl, hari);
+            document.getElementById('edit-waktu-start').value = settings.start;
+            document.getElementById('edit-waktu-break').value = settings.break;
+        }
+
+        window.saveEditorWaktu = function() {
+            const lvl = document.getElementById('edit-waktu-lvl').value;
+            const hari = document.getElementById('edit-waktu-hari').value;
+            const start = document.getElementById('edit-waktu-start').value;
+            const breakDur = parseInt(document.getElementById('edit-waktu-break').value);
+            
+            if (!hari) {
+                showToast("Pilih hari terlebih dahulu!", true);
+                return;
+            }
+
+            if (!customTimeSettings[lvl]) customTimeSettings[lvl] = {};
+            customTimeSettings[lvl][hari] = { start: start, break: breakDur };
+            
+            recalculateTimesAndBreaks(lvl);
+            renderAllMatrices();
+            closeModal('modal-editor-waktu');
+            showToast(`Sip! Jam ujian untuk ${lvl} pada ${hari} berhasil diterapkan!`);
+        }
+
         // 4. EDITOR GANTI PENGAWAS MANUAL
         window.openEditorPengawas = function(lvl) {
             document.getElementById('edit-pgw-lvl').value = lvl;
@@ -1670,8 +1813,13 @@
                             <!-- Tombol Export selalu muncul -->
                             <button onclick="exportLevelJS('${level}', false)" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Pengawas</button>
                             <button onclick="exportLevelJS('${level}', true)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">⬇️ Excel Siswa</button>
-                            <button onclick="printSubjectsOnly('${level}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter">🖨️ Cetak Pelajaran</button>
-                                                        <!-- Tombol Editor HANYA di Preview -->
+                            
+                            <!-- Tombol Editor Waktu (Menggantikan Cetak Pelajaran) -->
+                            <button onclick="openEditorWaktu('${level}')" class="bg-yellow-600 hover:bg-yellow-500 text-schoolBlue font-bold py-2 px-3 rounded text-[10px] uppercase tracking-tighter shadow-[0_0_10px_rgba(250,204,21,0.4)] transition">
+                                ⏱️ Editor Waktu
+                            </button>
+                            
+                            <!-- Tombol Editor HANYA di Preview -->
                             <button onclick="window.openEditorMapelMenu('${level}')" class="preview-only bg-blue-900/80 hover:bg-blue-800 border border-blue-500 text-blue-100 font-bold py-2 px-3 rounded shadow-[0_0_10px_rgba(59,130,246,0.5)] flex items-center transition text-[10px] uppercase">
                                 📚 Dashboard Editor Mapel
                             </button>
@@ -1868,6 +2016,7 @@
             });
         };
 
+        // Sengaja dibiarkan bila ingin dipanggil secara manual via console (tidak lagi ada tombolnya)
         window.printSubjectsOnly = function(target) {
             document.body.classList.add('print-' + target.toLowerCase());
             document.body.classList.add('print-subjects-only');
@@ -2006,18 +2155,42 @@
 
             const sesiData = currentScheduleData[h]?.[lvl]?.sessions.find(x => x.jam === s);
             let found = false;
-            if(sesiData && sesiData.pengawas) {
+            let replacedRombel = lvl; 
+            
+            if(sesiData && !sesiData.isBreak && sesiData.pengawas) {
                 for(let r in sesiData.pengawas) {
                     if(sesiData.pengawas[r]) {
                         let idx = sesiData.pengawas[r].indexOf(outT);
-                        if(idx !== -1) { sesiData.pengawas[r][idx] = inT; found = true; }
+                        if(idx !== -1) { 
+                            sesiData.pengawas[r][idx] = inT; 
+                            found = true; 
+                            replacedRombel = r; 
+                        }
                     }
                 }
             }
 
             if(found) {
-                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown();
-                                 showToast("Menyimpan perubahan ke DB...", false);
+                lastReplacement = {
+                    hari: h,
+                    sesi: s,
+                    waktu: sesiData.waktu,
+                    tingkat: lvl,
+                    rombel: replacedRombel,
+                    guruKeluar: outT,
+                    guruMasuk: inT
+                };
+                
+                if(!currentScheduleData.replacements) currentScheduleData.replacements = [];
+                currentScheduleData.replacements.push({
+                    hariJadwal: h, sesi: s, waktu: sesiData.waktu, tingkat: lvl, rombel: replacedRombel, guruKeluar: outT, guruMasuk: inT
+                });
+
+                document.getElementById('btn-print-surat').classList.remove('hidden');
+
+                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown(); 
+                
+                showToast("Menyimpan perubahan ke DB...", false);
                 try {
                     let payload = {
                         detailSesi: `Hari ${h}, Sesi ${s}, Tingkat ${lvl}`,
@@ -2036,12 +2209,134 @@
                 } catch(e) { console.error(e); showToast("Gagal simpan ke server.", true); }
 
                 al.innerText = "Sukses!"; al.className = "mt-4 p-3 text-blue-300 bg-blue-900/50 block";
-            } else {
-                 al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block";
-             }
+            } else { 
+                al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block"; 
+            }
             setTimeout(() => al.classList.add('hidden'), 3000);
         });
 
+        window.generateSuratTugasPDF = function() {
+            if (!lastReplacement) {
+                showToast("Silakan eksekusi pergantian pengawas terlebih dahulu!", true);
+                return;
+            }
+
+            let htmlContent = `
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="font-size: 24px; font-weight: bold; margin: 0; text-decoration: underline;">SURAT TUGAS PENGAWAS PENGGANTI</h1>
+                <h2 style="font-size: 18px; font-weight: bold; margin: 5px 0;">AL-WILDAN ISLAMIC SCHOOL BEKASI</h2>
+            </div>
+            <div style="font-size: 16px; line-height: 1.6;">
+                <p>Diberitahukan kepada:</p>
+                <p style="font-size: 20px; font-weight: bold; margin-left: 20px;">${lastReplacement.guruMasuk}</p>
+                
+                <p style="margin-top: 20px;">Bahwa Anda ditugaskan untuk mengawas ujian sebagai <strong>PENGGANTI</strong> dari:</p>
+                <p style="font-size: 20px; font-weight: bold; margin-left: 20px; color: #d32f2f;">${lastReplacement.guruKeluar}</p>
+                
+                <p style="margin-top: 20px;">Pada jadwal berikut:</p>
+                <ul style="font-size: 16px; margin-left: 20px; line-height: 2;">
+                    <li><strong>Hari / Tanggal :</strong> ${lastReplacement.hari}</li>
+                    <li><strong>Sesi / Waktu :</strong> Sesi ${lastReplacement.sesi} / ${lastReplacement.waktu}</li>
+                    <li><strong>Tingkat / Kelas :</strong> ${lastReplacement.tingkat} / ${lastReplacement.rombel}</li>
+                </ul>
+                
+                <p style="margin-top: 30px;">Mohon untuk hadir 15 menit sebelum ujian dimulai. Terima kasih atas kerjasamanya.</p>
+            </div>
+            
+            <div style="margin-top: 60px; text-align: right; font-size: 16px;">
+                <p>Bekasi, ....................................</p>
+                <p>Ketua Pelaksana,</p>
+                <br><br><br><br>
+                <p style="text-decoration: underline; font-weight: bold;">${savedSetupData.ketua || "________________________"}</p>
+            </div>
+            `;
+
+            document.getElementById('surat-pdf-content').innerHTML = htmlContent;
+            
+            const element = document.getElementById('surat-pdf-content');
+            const opt = {
+                margin:       1,
+                filename:     `Surat_Tugas_${lastReplacement.guruMasuk.replace(/\\s+/g, '_')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(element).save();
+        };
+
+        window.generateRekapPDF = function() {
+            const hari = document.getElementById('print-rekap-hari').value;
+            if(!hari) { showToast("Pilih hari terlebih dahulu!", true); return; }
+
+            const rekapData = currentScheduleData.replacements ? currentScheduleData.replacements.filter(r => r.hariJadwal === hari) : [];
+            
+            let htmlContent = `
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid black; padding-bottom: 15px; position: relative;">
+                <img src="https://thumbs2.imgbox.com/56/33/5BfaWatk_t.png" alt="Logo" style="position: absolute; left: 0; top: 0; height: 60px; object-fit: contain;">
+                <h1 style="font-size: 24px; font-weight: bold; margin: 0; text-transform: uppercase;">REKAPITULASI PENGAWAS PENGGANTI</h1>
+                <h2 style="font-size: 20px; font-weight: bold; margin: 5px 0;">AL-WILDAN ISLAMIC SCHOOL 15 BEKASI</h2>
+                <p style="font-size: 16px; margin: 5px 0;"><strong>Hari / Tanggal :</strong> ${hari}</p>
+            </div>
+            `;
+
+            if(rekapData.length === 0) {
+                htmlContent += `<p style="text-align: center; font-style: italic;">Tidak ada pergantian pengawas yang tercatat pada hari ini.</p>`;
+            } else {
+                htmlContent += `
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: center;">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="border: 1px solid black; padding: 10px;">SESI</th>
+                            <th style="border: 1px solid black; padding: 10px;">WAKTU</th>
+                            <th style="border: 1px solid black; padding: 10px;">KELAS / TINGKAT</th>
+                            <th style="border: 1px solid black; padding: 10px;">GURU BERHALANGAN</th>
+                            <th style="border: 1px solid black; padding: 10px;">GURU PENGGANTI</th>
+                            <th style="border: 1px solid black; padding: 10px; width: 100px;">PARAF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+                
+                rekapData.forEach(r => {
+                    htmlContent += `
+                    <tr>
+                        <td style="border: 1px solid black; padding: 10px;">${r.sesi}</td>
+                        <td style="border: 1px solid black; padding: 10px;">${r.waktu}</td>
+                        <td style="border: 1px solid black; padding: 10px;">${r.rombel}</td>
+                        <td style="border: 1px solid black; padding: 10px; color: red;">${r.guruKeluar}</td>
+                        <td style="border: 1px solid black; padding: 10px; color: green; font-weight: bold;">${r.guruMasuk}</td>
+                        <td style="border: 1px solid black; padding: 10px;"></td>
+                    </tr>
+                    `;
+                });
+
+                htmlContent += `</tbody></table>`;
+            }
+
+            htmlContent += `
+            <div style="margin-top: 50px; text-align: right; font-size: 14px;">
+                <p>Bekasi, ....................................</p>
+                <p>Divisi Penjadwalan,</p>
+                <br><br><br><br>
+                <p style="text-decoration: underline; font-weight: bold;">________________________</p>
+            </div>
+            `;
+
+            document.getElementById('rekap-pdf-content').innerHTML = htmlContent;
+            
+            const element = document.getElementById('rekap-pdf-content');
+            const opt = {
+                margin:       1,
+                filename:     `Rekap_Pengganti_${hari}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(element).save();
+            closeModal('modal-rekap-pdf');
+        }
     </script>
 </body>
 </html>
