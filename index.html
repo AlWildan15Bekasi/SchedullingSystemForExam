@@ -429,7 +429,6 @@
         </div>
     </div>
 
-    <!-- SUB-MODAL 1, 2, 3 (TUKAR, HAPUS, TAMBAH) -->
     <!-- SUB-MODAL 1: TUKAR MAPEL -->
     <div id="modal-mapel-tukar" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
@@ -526,7 +525,7 @@
         </div>
     </div>
 
-    <!-- MODAL EDITOR WAKTU (UPDATED: ISTIRAHAT 1 & 2) -->
+    <!-- MODAL EDITOR WAKTU (ISTIRAHAT 1 & 2) -->
     <div id="modal-editor-waktu" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
             <h2 class="text-xl font-bold text-yellow-400 mb-4 border-b border-yellow-400/30 pb-2">⏱️ Editor Waktu</h2>
@@ -589,7 +588,7 @@
         </div>
     </div>
 
-    <!-- MODAL PILIH HARI UNTUK CETAK REKAP PENGGANTI (UPDATED: AUTO WA) -->
+    <!-- MODAL PILIH HARI UNTUK CETAK REKAP PENGGANTI (AUTO WA) -->
     <div id="modal-rekap-pdf" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-sm relative">
             <h2 class="text-xl font-bold text-red-400 mb-4 border-b border-red-400/30 pb-2">Distribusi Info Pengganti</h2>
@@ -613,12 +612,11 @@
         </div>
     </div>
 
-    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF (REKAP HARIAN) -->
+    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF -->
     <div id="hidden-rekap-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
         <div id="rekap-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
     </div>
     
-    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF (SURAT TUGAS INDIVIDUAL) -->
     <div id="hidden-surat-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
         <div id="surat-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
     </div>
@@ -780,7 +778,8 @@
                 });
             }
 
-            renderDynamic('sd-container', sdClasses);
+            // PERBAIKAN: Menambahkan argumen 'sd' yang sebelumnya terlewat!
+            renderDynamic('sd-container', sdClasses, 'sd');
             renderDynamic('smp-container', smpClasses, 'smp');
             renderDynamic('sma-container', smaClasses, 'sma');
         }
@@ -1089,7 +1088,6 @@
                     let startMins = (uH * 60) + uM;
                     let totalExam = temp.reduce((s, m) => s + getSafeDuration(m), 0);
                     
-                    // Logic break dinamis
                     let breakTime = 0;
                     for (let x = 0; x < maxM - 1; x++) {
                         breakTime += (x === 0) ? userSet.break1 : userSet.break2;
@@ -1761,15 +1759,25 @@
             const container = document.getElementById('matrix-containers');
             container.innerHTML = '';
             const thn = savedSetupData.thn || "2025/2026";
-            const jenisUtama = document.getElementById('uji-sd-1')?.value || "STS / SAS";
 
             ['SD', 'SMP', 'SMA'].forEach(level => {
                 let allRombels = [];
                 for(let h of availableDays) { if(currentScheduleData[h] && currentScheduleData[h][level]) { allRombels = currentScheduleData[h][level].rombels; break; } }
                 if(allRombels.length === 0) return;
 
-                let color = level === 'SD' ? 'green' : (level === 'SMP' ? 'blue' : 'red');
+                // PERBAIKAN JUDUL: Cek jenis ujian spesifik untuk level ini dari dropdown
                 let lvlLC = level.toLowerCase();
+                let jenisUtamaLvl = "UJIAN";
+                for(let i=1; i<=12; i++) {
+                    let chk = document.getElementById(`chk-${lvlLC}-${i}`);
+                    let ujiSelect = document.getElementById(`uji-${lvlLC}-${i}`);
+                    if(chk && chk.checked && ujiSelect && ujiSelect.value) {
+                        jenisUtamaLvl = ujiSelect.value;
+                        break;
+                    }
+                }
+
+                let color = level === 'SD' ? 'green' : (level === 'SMP' ? 'blue' : 'red');
 
                 let html = `
                 <div class="glass-panel p-6 rounded-xl level-container ${lvlLC}-container">
@@ -1791,7 +1799,8 @@
                     </div>
                                         <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
                         <div class="text-center mb-6 border-b-[3px] border-black pb-4">
-                            <h1 class="text-xl font-black uppercase">PENGAWAS UJIAN ${jenisUtama} - ${level}</h1>
+                            <!-- PERBAIKAN: Judul Dinamis -->
+                            <h1 class="text-xl font-black uppercase">PENGAWAS UJIAN ${jenisUtamaLvl} - ${level}</h1>
                             <h2 class="text-lg font-bold uppercase">AL WILDAN ISLAMIC SCHOOL 15 BEKASI</h2>
                             <p class="text-md font-bold uppercase">TAHUN AJARAN ${thn}</p>
                         </div>
@@ -1869,11 +1878,22 @@
             if(!table) return;
 
             const thn = savedSetupData.thn || "2025/2026";
-            const jenisUtama = "STS / SAS";
+            
+            // PERBAIKAN: Header Excel ikut dinamis
+            let lvlLC = level.toLowerCase();
+            let jenisUtamaLvl = "UJIAN";
+            for(let i=1; i<=12; i++) {
+                let chk = document.getElementById(`chk-${lvlLC}-${i}`);
+                let ujiSelect = document.getElementById(`uji-${lvlLC}-${i}`);
+                if(chk && chk.checked && ujiSelect && ujiSelect.value) {
+                    jenisUtamaLvl = ujiSelect.value;
+                    break;
+                }
+            }
 
             ws.mergeCells(`A1:H1`);
             let cellKop1 = ws.getCell(`A1`);
-            cellKop1.value = skipPengawas ? `JADWAL UJIAN SISWA - ${level}` : `PENGAWAS UJIAN ${jenisUtama} - ${level}`;
+            cellKop1.value = skipPengawas ? `JADWAL UJIAN SISWA - ${level}` : `PENGAWAS UJIAN ${jenisUtamaLvl} - ${level}`;
             cellKop1.font = { size: 16, bold: true, name: 'Arial' };
             cellKop1.alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -2191,9 +2211,21 @@
             }
 
             const thn = savedSetupData.thn || "2025/2026";
-            const jenisUtama = document.getElementById('uji-sd-1')?.value || "STS / SAS";
             
-            let waText = `Bismillah,\n\n📢🔄️ *Informasi Penjadwalan ${jenisUtama} SD, SMP, SMA Tahun Ajaran ${thn}* 🔄️📢\n\n*${hari}*\n\n*Guru Pengganti :*\n\n`;
+            // Menggabungkan semua jenis ujian aktif dari dropdown agar pesan WA lebih komprehensif
+            let activeExams = new Set();
+            ['sd', 'smp', 'sma'].forEach(prefix => {
+                for(let i=1; i<=12; i++) {
+                    let chk = document.getElementById(`chk-${prefix}-${i}`);
+                    if(chk && chk.checked) {
+                        let sel = document.getElementById(`uji-${prefix}-${i}`);
+                        if(sel && sel.value) activeExams.add(sel.value);
+                    }
+                }
+            });
+            let jenisUtamaGlobal = activeExams.size > 0 ? Array.from(activeExams).join(' & ') : "UJIAN";
+            
+            let waText = `Bismillah,\n\n📢🔄️ *Informasi Penjadwalan ${jenisUtamaGlobal} SD, SMP, SMA Tahun Ajaran ${thn}* 🔄️📢\n\n*${hari}*\n\n*Guru Pengganti :*\n\n`;
             
             rekapData.forEach((r, idx) => {
                 waText += `${idx + 1}. ✅${r.guruKeluar}\n[🔹Sesi ${r.sesi}, 🎯Kelas ${r.rombel} : 📝${r.mapel}, ⏲️${r.waktu}] ⏩ ${r.guruMasuk}\n\n`;
