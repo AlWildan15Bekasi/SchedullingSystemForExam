@@ -132,6 +132,17 @@
             background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
             z-index: 100; display: none; justify-content: center; align-items: center;
         }
+        
+        /* Hidden PDF Container Fix */
+        .pdf-hidden-container {
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 800px; 
+            opacity: 0; 
+            pointer-events: none; 
+            z-index: -100;
+        }
     </style>
 </head>
 <body class="antialiased flex flex-col relative overflow-x-hidden">
@@ -353,16 +364,19 @@
                 </div>
             </div>
 
-            <!-- PANEL REPLACEMENT -->
+            <!-- PANEL REPLACEMENT (UPDATED LOGIC) -->
             <div class="glass-panel p-6 rounded-xl border-t-2 border-blue-400 md:col-span-2">
                 <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center uppercase text-center">Replacement Protocol (Ganti Pengawas)</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
-                    <div><label class="block text-xs text-gray-400 mb-1">Hari</label><select id="rep-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari"></select></div>
-                    <div><label class="block text-xs text-gray-400 mb-1">Sesi</label><select id="rep-sesi" class="w-full p-2 rounded futuristic-input text-sm filter-sesi"></select></div>
-                    <div><label class="block text-xs text-gray-400 mb-1">Tingkat</label><select id="rep-level" class="w-full p-2 rounded futuristic-input text-sm"><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA">SMA</option></select></div>
-                    <div><label class="block text-xs text-gray-400 mb-1">Guru Izin (Keluar)</label><select id="rep-guru-izin" class="w-full p-2 rounded futuristic-input text-sm teacher-dropdown"></select></div>
-                    <div><label class="block text-xs text-neonGold mb-1">Guru Pengganti (Masuk)</label><select id="rep-guru-pengganti" class="w-full p-2 rounded futuristic-input text-sm border-neonGold"></select></div>
-                    <div class="md:col-span-5 flex justify-end mt-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+                    <div><label class="block text-xs text-gray-400 mb-1">Hari</label><select id="rep-hari" class="w-full p-2 rounded futuristic-input text-sm filter-hari" onchange="updateRepGuruIzin()"></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Guru Izin</label><select id="rep-guru-izin" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateRepSesi()"><option value="">-</option></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Sesi</label><select id="rep-sesi" class="w-full p-2 rounded futuristic-input text-sm" onchange="updateRepInfo()"><option value="">-</option></select></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Kelas (Otomatis)</label><input type="text" id="rep-kelas" class="w-full p-2 rounded futuristic-input text-sm bg-black/50 text-gray-500 cursor-not-allowed" readonly placeholder="-"></div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Mapel (Otomatis)</label><input type="text" id="rep-mapel" class="w-full p-2 rounded futuristic-input text-sm bg-black/50 text-gray-500 cursor-not-allowed" readonly placeholder="-"></div>
+                    <div><label class="block text-xs text-neonGold mb-1">Guru Pengganti</label><select id="rep-guru-pengganti" class="w-full p-2 rounded futuristic-input text-sm border-neonGold"><option value="">-</option></select></div>
+                    
+                    <div class="md:col-span-3 lg:col-span-6 flex justify-end mt-2 gap-3 flex-wrap">
+                        <button onclick="openModal('modal-rekap-pdf')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded shadow transition tracking-widest uppercase flex items-center">💬 WA & Rekap</button>
                         <button id="btn-print-surat" onclick="generateSuratTugasPDF()" class="hidden bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded shadow transition tracking-widest uppercase">🖨️ Surat Tugas</button>
                         <button id="btn-replace" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-8 rounded shadow transition tracking-widest uppercase">Eksekusi</button>
                     </div>
@@ -504,7 +518,7 @@
         </div>
     </div>
 
-    <!-- MODAL EDITOR GANTI PENGAWAS -->
+    <!-- MODAL EDITOR GANTI PENGAWAS (MANUAL MODE PREVIEW) -->
     <div id="modal-pengawas" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-lg relative">
             <h2 class="text-xl font-bold text-purple-400 mb-4 border-b border-purple-400/30 pb-2">Editor Pengawas Manual</h2>
@@ -591,7 +605,7 @@
     <!-- MODAL PILIH HARI UNTUK CETAK REKAP PENGGANTI (AUTO WA) -->
     <div id="modal-rekap-pdf" class="modal-overlay">
         <div class="glass-panel p-8 rounded-xl w-full max-w-sm relative">
-            <h2 class="text-xl font-bold text-red-400 mb-4 border-b border-red-400/30 pb-2">Distribusi Info Pengganti</h2>
+            <h2 class="text-xl font-bold text-green-400 mb-4 border-b border-green-400/30 pb-2">Distribusi Info Pengganti</h2>
             <p class="text-xs text-gray-400 mb-4">Pilih hari ujian untuk menghasilkan PDF Rekapitulasi atau Salin Teks WA Otomatis.</p>
             
             <div class="mb-6">
@@ -612,12 +626,12 @@
         </div>
     </div>
 
-    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF -->
-    <div id="hidden-rekap-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
+    <!-- AREA TERSEMBUNYI UNTUK RENDER PDF (DENGAN FIX OPACITY) -->
+    <div id="hidden-rekap-container" class="pdf-hidden-container">
         <div id="rekap-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
     </div>
     
-    <div id="hidden-surat-container" style="position: absolute; left: -9999px; top: 0; width: 800px;">
+    <div id="hidden-surat-container" class="pdf-hidden-container">
         <div id="surat-pdf-content" style="background: white; color: black; padding: 40px; font-family: 'Arial', sans-serif;"></div>
     </div>
 
@@ -643,16 +657,15 @@
         
         let lastReplacement = null;
 
-        // VARIABEL BARU: MEMORI EDITOR WAKTU MULTIDIMENSI (Per Hari & Break 1, Break 2)
+        // VARIABEL BARU: MEMORI EDITOR WAKTU MULTIDIMENSI
         let customTimeSettings = {}; 
 
-        // Helper: Ambil settingan waktu. Jika kosong, pakai default break1=30, break2=15.
         function getDayTimeSettings(lvl, hari) {
             if (!customTimeSettings[lvl]) customTimeSettings[lvl] = {};
             if (customTimeSettings[lvl][hari]) {
                 return customTimeSettings[lvl][hari];
             }
-            return { start: '07:30', break1: 30, break2: 15 }; // Default bawaan
+            return { start: '07:30', break1: 30, break2: 15 }; 
         }
 
         function getSafeDuration(obj) {
@@ -778,7 +791,6 @@
                 });
             }
 
-            // PERBAIKAN: Menambahkan argumen 'sd' yang sebelumnya terlewat!
             renderDynamic('sd-container', sdClasses, 'sd');
             renderDynamic('smp-container', smpClasses, 'smp');
             renderDynamic('sma-container', smaClasses, 'sma');
@@ -1765,7 +1777,7 @@
                 for(let h of availableDays) { if(currentScheduleData[h] && currentScheduleData[h][level]) { allRombels = currentScheduleData[h][level].rombels; break; } }
                 if(allRombels.length === 0) return;
 
-                // PERBAIKAN JUDUL: Cek jenis ujian spesifik untuk level ini dari dropdown
+                // PERBAIKAN JUDUL Dinamis per level
                 let lvlLC = level.toLowerCase();
                 let jenisUtamaLvl = "UJIAN";
                 for(let i=1; i<=12; i++) {
@@ -1799,7 +1811,6 @@
                     </div>
                                         <div id="print-wrapper-${level}" class="print-bg-white bg-white p-4 sm:p-6 rounded-xl shadow-inner text-black mb-8">
                         <div class="text-center mb-6 border-b-[3px] border-black pb-4">
-                            <!-- PERBAIKAN: Judul Dinamis -->
                             <h1 class="text-xl font-black uppercase">PENGAWAS UJIAN ${jenisUtamaLvl} - ${level}</h1>
                             <h2 class="text-lg font-bold uppercase">AL WILDAN ISLAMIC SCHOOL 15 BEKASI</h2>
                             <p class="text-md font-bold uppercase">TAHUN AJARAN ${thn}</p>
@@ -1879,7 +1890,6 @@
 
             const thn = savedSetupData.thn || "2025/2026";
             
-            // PERBAIKAN: Header Excel ikut dinamis
             let lvlLC = level.toLowerCase();
             let jenisUtamaLvl = "UJIAN";
             for(let i=1; i<=12; i++) {
@@ -2015,11 +2025,14 @@
             });
         }
 
+        // Listener HANYA untuk panel lain (bukan Replacement Protocol karena sudah pakai onchange beda)
         document.querySelectorAll('.filter-hari').forEach(s => {
             s.addEventListener('change', (e) => {
                 const h = e.target.value;
                 const type = e.target.id.split('-')[0];
                 if(e.target.id === 'cek-personal-hari') { updatePersonalSchedule(); return; }
+                if(type === 'rep') return; // di-handle terpisah
+                
                 const sesiSelect = document.getElementById(`${type}-sesi`);
                 if(sesiSelect) {
                     sesiSelect.innerHTML = '<option value="">-- Sesi --</option>';
@@ -2038,31 +2051,11 @@
                     }
                 }
                 if(type === 'cek') updateGuruKosongList();
-                if(type === 'rep') updateSubstituteDropdown();
             });
         });
 
         document.getElementById('cek-sesi').addEventListener('change', updateGuruKosongList);
-        document.getElementById('rep-sesi').addEventListener('change', updateSubstituteDropdown);
         document.getElementById('cek-personal-guru').addEventListener('change', updatePersonalSchedule);
-
-        function updateSubstituteDropdown() {
-            const h = document.getElementById('rep-hari').value, s = parseInt(document.getElementById('rep-sesi').value);
-            const drop = document.getElementById('rep-guru-pengganti');
-            if(!h || !s) { drop.innerHTML = '<option value="">-- Pilih Hari/Sesi --</option>'; return; }
-            let assigned = [];
-            ['SD','SMP','SMA'].forEach(lvl => {
-                if(currentScheduleData[h] && currentScheduleData[h][lvl]) {
-                    const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
-                    if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
-                }
-            });
-            
-            let dedicatedGurus = getActiveDedicatedGurus(); 
-             let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
-            
-            drop.innerHTML = free.length ? '<option value="">-- Pilih Pengganti --</option>' + free.map(t => `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`).join('') : '<option value="">Kosong</option>';
-        }
 
         function updatePersonalSchedule() {
             const h = document.getElementById('cek-personal-hari').value, g = document.getElementById('cek-personal-guru').value;
@@ -2124,36 +2117,143 @@
             container.innerHTML = sorted.map(t => `<div class="p-2 border border-white/10 rounded flex justify-between"><span>${t}</span><span class="font-bold">${counts[t]}</span></div>`).join('');
         }
 
+        // =======================================================
+        // LOGIKA BARU REPLACEMENT PROTOCOL (GANTI PENGAWAS AUTO)
+        // =======================================================
+        let tempRepData = []; 
+
+        window.updateRepGuruIzin = function() {
+            const h = document.getElementById('rep-hari').value;
+            const drop = document.getElementById('rep-guru-izin');
+            drop.innerHTML = '<option value="">- Pilih Guru -</option>';
+            document.getElementById('rep-sesi').innerHTML = '<option value="">-</option>';
+            document.getElementById('rep-kelas').value = '';
+            document.getElementById('rep-mapel').value = '';
+            document.getElementById('rep-guru-pengganti').innerHTML = '<option value="">-</option>';
+            
+            if(!h) return;
+            let assignedGurus = new Set();
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    currentScheduleData[h][lvl].sessions.forEach(s => {
+                        if(!s.isBreak && s.pengawas) {
+                            for(let r in s.pengawas) {
+                                s.pengawas[r].forEach(g => assignedGurus.add(g));
+                            }
+                        }
+                    });
+                }
+            });
+            Array.from(assignedGurus).sort().forEach(g => {
+                drop.innerHTML += `<option value="${g}">${g}</option>`;
+            });
+        }
+
+        window.updateRepSesi = function() {
+            const h = document.getElementById('rep-hari').value;
+            const g = document.getElementById('rep-guru-izin').value;
+            const drop = document.getElementById('rep-sesi');
+            drop.innerHTML = '<option value="">- Pilih Sesi -</option>';
+            document.getElementById('rep-kelas').value = '';
+            document.getElementById('rep-mapel').value = '';
+            document.getElementById('rep-guru-pengganti').innerHTML = '<option value="">-</option>';
+            tempRepData = [];
+
+            if(!h || !g) return;
+            
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h]?.[lvl]) {
+                    currentScheduleData[h][lvl].sessions.forEach(s => {
+                        if(!s.isBreak && s.pengawas) {
+                            for(let r in s.pengawas) {
+                                if(s.pengawas[r].includes(g)) {
+                                    let mapel = s.mapelUtama[r] || "-";
+                                    tempRepData.push({
+                                        sesi: s.jam,
+                                        waktu: s.waktu,
+                                        tingkat: lvl,
+                                        rombel: r,
+                                        mapel: mapel
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            tempRepData.forEach((d, idx) => {
+                drop.innerHTML += `<option value="${idx}">Sesi ${d.sesi} (${d.tingkat})</option>`;
+            });
+
+            if(tempRepData.length === 1) {
+                drop.value = 0;
+                updateRepInfo(); 
+            }
+        }
+
+        window.updateRepInfo = function() {
+            const dropVal = document.getElementById('rep-sesi').value;
+            if(dropVal === "") {
+                document.getElementById('rep-kelas').value = '';
+                document.getElementById('rep-mapel').value = '';
+                document.getElementById('rep-guru-pengganti').innerHTML = '<option value="">-</option>';
+                return;
+            }
+            const data = tempRepData[dropVal];
+            document.getElementById('rep-kelas').value = `${data.rombel} (${data.tingkat})`;
+            document.getElementById('rep-mapel').value = data.mapel;
+
+            updateSubstituteDropdownAuto(document.getElementById('rep-hari').value, data.sesi);
+        }
+
+        function updateSubstituteDropdownAuto(h, s) {
+            const drop = document.getElementById('rep-guru-pengganti');
+            if(!h || !s) { drop.innerHTML = '<option value="">-</option>'; return; }
+            let assigned = [];
+            ['SD','SMP','SMA'].forEach(lvl => {
+                if(currentScheduleData[h] && currentScheduleData[h][lvl]) {
+                    const sd = currentScheduleData[h][lvl].sessions.find(x => x.jam === s);
+                    if(sd && sd.pengawas) for(let r in sd.pengawas) assigned.push(...sd.pengawas[r]);
+                }
+            });
+            
+            let dedicatedGurus = getActiveDedicatedGurus(); 
+            let free = masterGurus.filter(t => !assigned.includes(t.Nama_Guru) && t.Nama_Guru !== savedSetupData.ketua && !dedicatedGurus.has(t.Nama_Guru));
+            
+            drop.innerHTML = free.length ? '<option value="">-- Pilih Pengganti --</option>' + free.map(t => `<option value="${t.Nama_Guru}">⭐ ${t.Nama_Guru} (${t.Jenjang_Diajar})</option>`).join('') : '<option value="">Kosong</option>';
+        }
+
         document.getElementById('btn-replace').addEventListener('click', async () => {
-            const h = document.getElementById('rep-hari').value, s = parseInt(document.getElementById('rep-sesi').value);
-            const lvl = document.getElementById('rep-level').value, outT = document.getElementById('rep-guru-izin').value, inT = document.getElementById('rep-guru-pengganti').value;
+            const h = document.getElementById('rep-hari').value;
+            const dropVal = document.getElementById('rep-sesi').value;
+            const outT = document.getElementById('rep-guru-izin').value;
+            const inT = document.getElementById('rep-guru-pengganti').value;
             const al = document.getElementById('rep-alert');
-                        
-            if(!h || !s || !outT || !inT) {
+            
+            if(!h || dropVal === "" || !outT || !inT) {
                 al.innerText = "Lengkapi Data!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block";
                 setTimeout(() => al.classList.add('hidden'), 3000); return;
             }
 
+            const data = tempRepData[dropVal];
+            const s = data.sesi;
+            const lvl = data.tingkat;
+            const replacedRombel = data.rombel;
+            const replacedMapel = data.mapel;
+
             const sesiData = currentScheduleData[h]?.[lvl]?.sessions.find(x => x.jam === s);
             let found = false;
-            let replacedRombel = lvl; 
             
-            if(sesiData && !sesiData.isBreak && sesiData.pengawas) {
-                for(let r in sesiData.pengawas) {
-                    if(sesiData.pengawas[r]) {
-                        let idx = sesiData.pengawas[r].indexOf(outT);
-                        if(idx !== -1) { 
-                            sesiData.pengawas[r][idx] = inT; 
-                            found = true; 
-                            replacedRombel = r; 
-                        }
-                    }
+            if(sesiData && !sesiData.isBreak && sesiData.pengawas && sesiData.pengawas[replacedRombel]) {
+                let idx = sesiData.pengawas[replacedRombel].indexOf(outT);
+                if(idx !== -1) { 
+                    sesiData.pengawas[replacedRombel][idx] = inT; 
+                    found = true; 
                 }
             }
 
             if(found) {
-                let replacedMapel = sesiData.mapelUtama ? (sesiData.mapelUtama[replacedRombel] || "-") : "-";
-
                 lastReplacement = {
                     hari: h,
                     sesi: s,
@@ -2172,7 +2272,8 @@
 
                 document.getElementById('btn-print-surat').classList.remove('hidden');
 
-                renderAllMatrices(); updateRekapSesi(); updateSubstituteDropdown(); 
+                renderAllMatrices(); updateRekapSesi(); 
+                updateSubstituteDropdownAuto(h, s); 
                 
                 showToast("Menyimpan perubahan ke DB...", false);
                 try {
@@ -2193,8 +2294,9 @@
                 } catch(e) { console.error(e); showToast("Gagal simpan ke server.", true); }
 
                 al.innerText = "Sukses!"; al.className = "mt-4 p-3 text-blue-300 bg-blue-900/50 block";
+                document.getElementById('rep-guru-pengganti').value = "";
             } else { 
-                al.innerText = "Guru tidak ditemukan!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block"; 
+                al.innerText = "Guru tidak ditemukan atau sudah diganti!"; al.className = "mt-4 p-3 text-red-300 bg-red-900/50 block"; 
             }
             setTimeout(() => al.classList.add('hidden'), 3000);
         });
@@ -2212,7 +2314,6 @@
 
             const thn = savedSetupData.thn || "2025/2026";
             
-            // Menggabungkan semua jenis ujian aktif dari dropdown agar pesan WA lebih komprehensif
             let activeExams = new Set();
             ['sd', 'smp', 'sma'].forEach(prefix => {
                 for(let i=1; i<=12; i++) {
